@@ -1,0 +1,46 @@
+\documentclass[border=6pt]{standalone}
+\usepackage{pgfplots}
+\usepackage{amsmath}
+\usepgfplotslibrary{groupplots}
+\pgfplotsset{compat=1.18}
+
+\pgfplotsset{
+  heat/.style={matrix plot*, mesh/cols=80, point meta=explicit,
+               shader=interp},
+  meshov/.style={white, line width=0.25pt, mark=none, forget plot},
+}
+
+\begin{document}
+\begin{tikzpicture}
+\begin{groupplot}[
+    group style={group size=2 by 3, horizontal sep=1.0cm, vertical sep=0.7cm,
+                 xticklabels at=edge bottom, yticklabels at=edge left},
+    width=0.40\textwidth, height=0.40\textwidth,
+    axis equal image, enlargelimits=false,
+    xmin=0, xmax=1, ymin=0, ymax=1,
+    xtick={0,0.5,1}, ytick={0,0.5,1},
+    tick label style={font=\scriptsize},
+    title style={font=\small}, label style={font=\small},
+    colormap/viridis,
+  ]
+  \nextgroupplot[title={uniform mesh}, ylabel={$\alpha=3.9$}]
+    \addplot[heat] table[col sep=comma, x=x, y=y, meta=z] {fielddata/P2_heat_param1.csv};
+    \addplot[meshov] table[header=false] {meshdata/P2_mesh_p3_param1_uniform.dat};
+  \nextgroupplot[title={r-adapted mesh}]
+    \addplot[heat] table[col sep=comma, x=x, y=y, meta=z] {fielddata/P2_heat_param1.csv};
+    \addplot[meshov] table[header=false] {meshdata/P2_mesh_p3_param1_positional.dat};
+  \nextgroupplot[ylabel={$\alpha=11.9$}]
+    \addplot[heat] table[col sep=comma, x=x, y=y, meta=z] {fielddata/P2_heat_param2.csv};
+    \addplot[meshov] table[header=false] {meshdata/P2_mesh_p3_param2_uniform.dat};
+  \nextgroupplot
+    \addplot[heat] table[col sep=comma, x=x, y=y, meta=z] {fielddata/P2_heat_param2.csv};
+    \addplot[meshov] table[header=false] {meshdata/P2_mesh_p3_param2_positional.dat};
+  \nextgroupplot[ylabel={$\alpha=19.1$}]
+    \addplot[heat] table[col sep=comma, x=x, y=y, meta=z] {fielddata/P2_heat_param3.csv};
+    \addplot[meshov] table[header=false] {meshdata/P2_mesh_p3_param3_uniform.dat};
+  \nextgroupplot
+    \addplot[heat] table[col sep=comma, x=x, y=y, meta=z] {fielddata/P2_heat_param3.csv};
+    \addplot[meshov] table[header=false] {meshdata/P2_mesh_p3_param3_positional.dat};
+\end{groupplot}
+\end{tikzpicture}
+\end{document}

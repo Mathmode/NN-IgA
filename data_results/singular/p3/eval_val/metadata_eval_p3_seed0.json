@@ -1,0 +1,30 @@
+{
+  "p": 3,
+  "seed": 0,
+  "mode": "eval_singular",
+  "protocol": "val",
+  "n_test_betas": 67,
+  "test_set_seed_independent": true,
+  "remediation_task": "T5 (audit D9)",
+  "tau_global": null,
+  "no_tau": false,
+  "checkpoint": "data_results/singular/p3/checkpoints/p3_seed0/checkpoint_final.npz",
+  "git_hash": "98dea9df5ce6086ad038eab27e8ea8f45260943b",
+  "platform": "macOS-26.5-arm64-arm-64bit",
+  "python": "3.12.13 | packaged by conda-forge | (main, Mar  5 2026, 17:06:14) [Clang 19.1.7 ]",
+  "device": "cpu",
+  "elapsed_sec": 243.56969237500016,
+  "eval_levels": [
+    2,
+    4,
+    8,
+    16,
+    32,
+    64,
+    128,
+    256
+  ],
+  "n_summary_rows": 1072,
+  "record_history": false,
+  "corrector_budget_override": 0
+}

@@ -1,0 +1,26 @@
+{
+  "p": 3,
+  "seed": 1,
+  "mode": "eval_singular",
+  "tau_global": null,
+  "no_tau": false,
+  "checkpoint": "/scratch/ecaru/repo_pro/data_results/singular/p3/checkpoints/p3_seed1/checkpoint_final.npz",
+  "git_hash": "unknown",
+  "platform": "Linux-4.18.0-553.el8_10.x86_64-x86_64-with-glibc2.28",
+  "python": "3.10.20 | packaged by conda-forge | (main, Mar  5 2026, 16:42:22) [GCC 14.3.0]",
+  "device": "cpu",
+  "elapsed_sec": 555.8595714020003,
+  "eval_levels": [
+    2,
+    4,
+    8,
+    16,
+    32,
+    64,
+    128,
+    256
+  ],
+  "n_summary_rows": 2048,
+  "record_history": true,
+  "corrector_budget_override": 0
+}

@@ -1,0 +1,6 @@
+experiment,p2_interseed_iqr_median,p2_interseed_iqr_max,p3_interseed_iqr_median,p3_interseed_iqr_max
+Singular,0.0079,0.0959,0.0095,0.0568
+Helmholtz,0.0425,0.0659,0.0609,0.1096
+Arctan,0.0206,0.0313,0.0282,0.0500
+L-shape,0.0089,0.0194,0.0126,0.0156
+Adv-diff,0.0719,0.2581,0.0679,0.2241

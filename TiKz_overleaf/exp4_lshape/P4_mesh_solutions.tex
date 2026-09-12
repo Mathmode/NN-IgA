@@ -1,0 +1,148 @@
+\documentclass[border=6pt]{standalone}
+\usepackage{pgfplots}
+\usepackage{amsmath}
+\usepgfplotslibrary{groupplots}
+\pgfplotsset{compat=1.18}
+
+\newlength{\plotsize}
+\setlength{\plotsize}{0.27\textwidth}
+
+\pgfplotsset{
+  heat/.style={
+    matrix plot*,
+    mesh/cols=81,
+    point meta=explicit,
+    shader=interp
+  },
+  meshov/.style={
+    black,
+    line width=0.25pt,
+    mark=none,
+    forget plot
+  },
+  lshape/.style={
+    black,
+    line width=0.8pt,
+    mark=none,
+    forget plot
+  },
+  rowcolorbar/.style={
+    colorbar right,
+    colorbar style={
+      scale only axis,
+      height=\plotsize,
+      width=2.5mm,
+      scaled y ticks=base 10:2,
+      ytick scale label code/.code={},
+      title={$\cdot 10^{-2}$},
+      title style={
+        at={(axis description cs:0.5,1.04)},
+        anchor=south,
+        font=\scriptsize,
+        inner sep=0pt
+      },
+      yticklabel style={font=\scriptsize},
+      tick label style={font=\scriptsize}
+    }
+  },
+  colormap={surfaceblue}{
+    rgb255(0cm)=(35,55,120);
+    rgb255(1cm)=(70,120,180);
+    rgb255(2cm)=(120,190,210);
+    rgb255(3cm)=(230,230,170);
+    rgb255(4cm)=(180,70,50)
+  }
+}
+
+\newcommand{\Lblank}{%
+  \fill[white] (axis cs:0.5,0) rectangle (axis cs:1,0.5);
+  \addplot[lshape] coordinates {(0,0) (0.5,0) (0.5,0.5) (1,0.5) (1,1) (0,1) (0,0)};
+}
+
+\begin{document}
+
+\begin{tikzpicture}
+\begin{groupplot}[
+  group style={
+    group size=3 by 2,
+    horizontal sep=1.0cm,
+    vertical sep=0.7cm
+  },
+  scale only axis,
+  width=\plotsize,
+  height=\plotsize,
+  enlargelimits=false,
+  xmin=0, xmax=1,
+  ymin=0, ymax=1,
+  xtick={0,0.5,1},
+  ytick={0,0.5,1},
+  tick label style={font=\scriptsize},
+  title style={font=\small},
+  label style={font=\small},
+  colormap name=surfaceblue
+]
+
+% =========================
+% Primera fila
+% =========================
+
+\nextgroupplot[
+  title={},
+  ylabel={}
+]
+  \addplot[heat] table[col sep=comma, x=x, y=y, meta=z]
+    {fielddata/P3_heat_p2_param1.csv};
+  \addplot[meshov] table[header=false]
+    {meshdata/P3_mesh_p2_param1_uniform.dat};
+  \Lblank
+
+\nextgroupplot[
+  title={}
+]
+  \addplot[heat] table[col sep=comma, x=x, y=y, meta=z]
+    {fielddata/P3_heat_p2_param1.csv};
+  \addplot[meshov] table[header=false]
+    {meshdata/P3_mesh_p2_param1_radapted.dat};
+  \Lblank
+
+\nextgroupplot[
+  title={},
+  rowcolorbar
+]
+  \addplot[heat] table[col sep=comma, x=x, y=y, meta=z]
+    {fielddata/P3_heat_p3_param1.csv};
+  \addplot[meshov] table[header=false]
+    {meshdata/P3_mesh_p3_param1_radapted.dat};
+  \Lblank
+
+% =========================
+% Segunda fila
+% =========================
+
+\nextgroupplot[
+  ylabel={}
+]
+  \addplot[heat] table[col sep=comma, x=x, y=y, meta=z]
+    {fielddata/P3_heat_p2_param2.csv};
+  \addplot[meshov] table[header=false]
+    {meshdata/P3_mesh_p2_param2_uniform.dat};
+  \Lblank
+
+\nextgroupplot
+  \addplot[heat] table[col sep=comma, x=x, y=y, meta=z]
+    {fielddata/P3_heat_p2_param2.csv};
+  \addplot[meshov] table[header=false]
+    {meshdata/P3_mesh_p2_param2_radapted.dat};
+  \Lblank
+
+\nextgroupplot[rowcolorbar]
+  \addplot[heat] table[col sep=comma, x=x, y=y, meta=z]
+    {fielddata/P3_heat_p3_param2.csv};
+  \addplot[meshov] table[header=false]
+    {meshdata/P3_mesh_p3_param2_radapted.dat};
+  \Lblank
+
+\end{groupplot}
+\end{tikzpicture}
+
+\end{document}

@@ -1,0 +1,44 @@
+{
+  "p": 2,
+  "seed": 0,
+  "smoke": false,
+  "protocol": "val",
+  "split_seed": 20240601,
+  "uniform_init": false,
+  "evaluation": "v2",
+  "corrector_max_iter": 0,
+  "run_corrector": false,
+  "tau_global": null,
+  "git_hash": "unknown",
+  "platform": "Linux-4.18.0-553.el8_10.x86_64-x86_64-with-glibc2.28",
+  "python": "3.10.20 | packaged by conda-forge | (main, Mar  5 2026, 16:42:22) [GCC 14.3.0]",
+  "device": "cpu",
+  "elapsed_sec": 7323.753464208916,
+  "training_elapsed_sec": 320.9209575848654,
+  "levels_done": [
+    2,
+    4,
+    8,
+    16,
+    32,
+    64
+  ],
+  "eval_levels": [
+    2,
+    4,
+    8,
+    16,
+    32,
+    64,
+    128,
+    256
+  ],
+  "continuation_levels": [
+    2,
+    4,
+    8,
+    16,
+    32,
+    64
+  ]
+}

@@ -1,0 +1,116 @@
+\documentclass[border=6pt]{standalone}
+\usepackage{pgfplots}
+\usepackage{amsmath}
+\usepgfplotslibrary{groupplots}
+\pgfplotsset{compat=1.18}
+
+\newlength{\plotsize}
+\setlength{\plotsize}{5.0cm}
+
+\pgfplotsset{
+  gradheat/.style={
+    matrix plot*,
+    mesh/cols=81,
+    point meta=explicit,
+    shader=interp
+  },
+  knots/.style={
+    black,
+    line width=0.3pt,
+    mark=none,
+    forget plot
+  },
+  corner/.style={
+    black,
+    line width=0.9pt,
+    mark=none,
+    forget plot
+  },
+  rowcolorbar/.style={
+    colorbar right,
+    colorbar style={
+      scale only axis,
+      height=\plotsize,
+      width=2.6mm,
+      % log10 colour scale: ticks placed at log10(value), labelled with the value
+      ytick={-1,-0.522879,0,0.477121,0.69897},
+      yticklabels={$0.1$,$0.3$,$1$,$3$,$5$},
+      yticklabel style={font=\scriptsize},
+      tick label style={font=\scriptsize},
+      scaled y ticks=false,
+      ylabel={$|\nabla u_h|$},
+      ylabel style={font=\scriptsize}
+    }
+  },
+  colormap={gradcividis}{
+    rgb255(0cm)=(0,32,76);
+    rgb255(1cm)=(40,72,122);
+    rgb255(2cm)=(87,116,137);
+    rgb255(3cm)=(142,159,129);
+    rgb255(4cm)=(208,210,98)
+  }
+}
+
+% blank the removed quadrant within the zoom box + trace the re-entrant corner
+\newcommand{\Lblankzoom}{%
+  \fill[white] (axis cs:0.5,0.25) rectangle (axis cs:0.75,0.5);
+  \addplot[corner] coordinates {(0.5,0.25) (0.5,0.5) (0.75,0.5)};
+}
+
+\begin{document}
+
+\begin{tikzpicture}
+\begin{groupplot}[
+  group style={
+    group size=3 by 1,
+    horizontal sep=1.4cm
+  },
+  scale only axis,
+  width=\plotsize,
+  height=\plotsize,
+  enlargelimits=false,
+  xmin=0.25, xmax=0.75,
+  ymin=0.25, ymax=0.75,
+  xtick={0.25,0.5,0.75},
+  ytick={0.25,0.5,0.75},
+  tick label style={font=\scriptsize},
+  title style={font=\small},
+  label style={font=\small},
+  colormap name=gradcividis,
+  % log10(|grad u_h|): range 10^-1.3 ~ 0.05  to  10^0.71 ~ 5.1 (corner peak, N=16)
+  point meta min=-1.3,
+  point meta max=0.71
+]
+
+\nextgroupplot[
+  title={}
+]
+  \addplot[gradheat] table[col sep=comma, x=x, y=y, meta=logz]
+    {gradzoom/P3_grad_uniform_p2.csv};
+  \addplot[knots] table[header=false]
+    {gradzoom/P3_grad_knots_uniform_p2.dat};
+  \Lblankzoom
+
+\nextgroupplot[
+  title={}
+]
+  \addplot[gradheat] table[col sep=comma, x=x, y=y, meta=logz]
+    {gradzoom/P3_grad_radapted_p2.csv};
+  \addplot[knots] table[header=false]
+    {gradzoom/P3_grad_knots_radapted_p2.dat};
+  \Lblankzoom
+
+\nextgroupplot[
+  title={},
+  rowcolorbar
+]
+  \addplot[gradheat] table[col sep=comma, x=x, y=y, meta=logz]
+    {gradzoom/P3_grad_radapted_p3.csv};
+  \addplot[knots] table[header=false]
+    {gradzoom/P3_grad_knots_radapted_p3.dat};
+  \Lblankzoom
+
+\end{groupplot}
+\end{tikzpicture}
+
+\end{document}
