@@ -1,0 +1,26 @@
+\begin{table}[t]
+\centering
+\small
+\caption{\textbf{Experiment 1.} Median relative $H^1$ error $|u^\ast-u_{(\cdot)}|_{H^1}/|u^\ast|_{H^1}$ and median effectivity index $I_{\mathrm{eff}}=\eta/|u^\ast-u_{(\cdot)}|_{H^1}$ per level $N$, for the uniform ($u_h$) and adapted ($u_\theta$) meshes, at $p=2$ and $p=3$. Medians pool the four seeds and the held-out test parameters.}
+\label{tab:singular_summary}
+\begin{adjustbox}{max width=\textwidth}
+\begin{tabular}{c cccc @{\hspace{1.0em}} cccc}
+\toprule
+& \multicolumn{4}{c}{$p=2$} & \multicolumn{4}{c}{$p=3$} \\
+\cmidrule(lr){2-5} \cmidrule(lr){6-9}
+& \multicolumn{2}{c}{$H^1_{\mathrm{rel}}$} & \multicolumn{2}{c}{$I_{\mathrm{eff}}$} & \multicolumn{2}{c}{$H^1_{\mathrm{rel}}$} & \multicolumn{2}{c}{$I_{\mathrm{eff}}$} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9}
+$N$ & $u_h$ & $u_\theta$ & $u_h$ & $u_\theta$ & $u_h$ & $u_\theta$ & $u_h$ & $u_\theta$ \\
+\midrule
+2 & $2.01{\times}10^{-2}$ & $1.41{\times}10^{-2}$ & $14.43$ & $13.49$ & $8.14{\times}10^{-3}$ & $3.97{\times}10^{-3}$ & $28.45$ & $25.32$ \\
+4 & $8.69{\times}10^{-3}$ & $4.01{\times}10^{-3}$ & $14.37$ & $12.00$ & $3.57{\times}10^{-3}$ & $7.88{\times}10^{-4}$ & $27.93$ & $18.95$ \\
+8 & $3.73{\times}10^{-3}$ & $1.10{\times}10^{-3}$ & $14.35$ & $11.22$ & $1.53{\times}10^{-3}$ & $1.30{\times}10^{-4}$ & $27.91$ & $14.54$ \\
+16 & $1.60{\times}10^{-3}$ & $2.96{\times}10^{-4}$ & $14.35$ & $10.87$ & $6.58{\times}10^{-4}$ & $1.91{\times}10^{-5}$ & $27.91$ & $10.52$ \\
+32 & $6.87{\times}10^{-4}$ & $8.01{\times}10^{-5}$ & $14.34$ & $10.94$ & $2.82{\times}10^{-4}$ & $2.62{\times}10^{-6}$ & $27.91$ & $7.54$ \\
+64 & $2.95{\times}10^{-4}$ & $1.71{\times}10^{-5}$ & $14.34$ & $7.88$ & $1.21{\times}10^{-4}$ & $3.47{\times}10^{-7}$ & $27.91$ & $6.78$ \\
+128 & $1.26{\times}10^{-4}$ & $4.57{\times}10^{-6}$ & $14.34$ & $7.75$ & $5.19{\times}10^{-5}$ & $4.51{\times}10^{-8}$ & $27.91$ & $7.90$ \\
+256 & $5.42{\times}10^{-5}$ & $1.14{\times}10^{-6}$ & $14.34$ & $7.75$ & $2.23{\times}10^{-5}$ & $5.80{\times}10^{-9}$ & $27.91$ & $7.57$ \\
+\bottomrule
+\end{tabular}
+\end{adjustbox}
+\end{table}

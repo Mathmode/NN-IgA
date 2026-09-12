@@ -1,0 +1,37 @@
+{
+  "experiment": "helmholtz_contrast",
+  "p": 3,
+  "seed": 1,
+  "smoke": false,
+  "protocol": "val",
+  "param": "contrast",
+  "mesh": "global",
+  "levels": [
+    64,
+    96,
+    128
+  ],
+  "epochs_per_level": {
+    "64": 400,
+    "96": 400,
+    "128": 400
+  },
+  "warm_epochs": 60,
+  "n_train": 70,
+  "n_test": 15,
+  "hidden_dims": [
+    32,
+    32
+  ],
+  "g_min_target": 2.5,
+  "use_hmax": true,
+  "final_loss": 0.13895046436742373,
+  "elapsed_sec": 536.2190828240127,
+  "split_seed": 20240601,
+  "n_val": 15,
+  "best_val_eta2": {
+    "64": 0.11818289791634665,
+    "96": 0.12093069723611011,
+    "128": 0.12112863533599061
+  }
+}

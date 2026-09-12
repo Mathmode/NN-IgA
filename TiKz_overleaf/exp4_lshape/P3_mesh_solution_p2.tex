@@ -1,0 +1,50 @@
+\documentclass[border=6pt]{standalone}
+\usepackage{pgfplots}
+\usepackage{amsmath}
+\usepgfplotslibrary{groupplots}
+\pgfplotsset{compat=1.18}
+
+\pgfplotsset{
+  heat/.style={matrix plot*, mesh/cols=81, point meta=explicit, shader=interp},
+  meshov/.style={white, line width=0.25pt, mark=none, forget plot},
+  lshape/.style={white, line width=0.8pt, mark=none, forget plot},
+}
+% blank the removed quadrant, then trace the L-shape boundary
+\newcommand{\Lblank}{%
+  \fill[white] (axis cs:0.5,0) rectangle (axis cs:1,0.5);
+  \addplot[lshape] coordinates {(0,0) (0.5,0) (0.5,0.5) (1,0.5) (1,1) (0,1) (0,0)};}
+
+\begin{document}
+\begin{tikzpicture}
+\begin{groupplot}[
+    group style={group size=2 by 3, horizontal sep=1.0cm, vertical sep=0.7cm,
+                 xticklabels at=edge bottom, yticklabels at=edge left},
+    width=0.40\textwidth, height=0.40\textwidth,
+    axis equal image, enlargelimits=false,
+    xmin=0, xmax=1, ymin=0, ymax=1,
+    xtick={0,0.5,1}, ytick={0,0.5,1},
+    tick label style={font=\scriptsize},
+    title style={font=\small}, label style={font=\small},
+    colormap/viridis,
+  ]
+  \nextgroupplot[title={uniform mesh}, ylabel={$\sigma=(0.89,0.89)$}]
+    \addplot[heat] table[col sep=comma, x=x, y=y, meta=z] {fielddata/P3_heat_p2_param1.csv};
+    \addplot[meshov] table[header=false] {meshdata/P3_mesh_p2_param1_uniform.dat}; \Lblank
+  \nextgroupplot[title={r-adapted mesh}]
+    \addplot[heat] table[col sep=comma, x=x, y=y, meta=z] {fielddata/P3_heat_p2_param1.csv};
+    \addplot[meshov] table[header=false] {meshdata/P3_mesh_p2_param1_radapted.dat}; \Lblank
+  \nextgroupplot[ylabel={$\sigma=(0.1,10)$}]
+    \addplot[heat] table[col sep=comma, x=x, y=y, meta=z] {fielddata/P3_heat_p2_param2.csv};
+    \addplot[meshov] table[header=false] {meshdata/P3_mesh_p2_param2_uniform.dat}; \Lblank
+  \nextgroupplot
+    \addplot[heat] table[col sep=comma, x=x, y=y, meta=z] {fielddata/P3_heat_p2_param2.csv};
+    \addplot[meshov] table[header=false] {meshdata/P3_mesh_p2_param2_radapted.dat}; \Lblank
+  \nextgroupplot[ylabel={$\sigma=(10,0.1)$}]
+    \addplot[heat] table[col sep=comma, x=x, y=y, meta=z] {fielddata/P3_heat_p2_param3.csv};
+    \addplot[meshov] table[header=false] {meshdata/P3_mesh_p2_param3_uniform.dat}; \Lblank
+  \nextgroupplot
+    \addplot[heat] table[col sep=comma, x=x, y=y, meta=z] {fielddata/P3_heat_p2_param3.csv};
+    \addplot[meshov] table[header=false] {meshdata/P3_mesh_p2_param3_radapted.dat}; \Lblank
+\end{groupplot}
+\end{tikzpicture}
+\end{document}

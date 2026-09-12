@@ -1,0 +1,17 @@
+% Inter-seed reproducibility of the positional (r-adaptive) error.
+% Relative inter-quartile range (p75-p25)/median over the 4 random seeds, each seed
+% summarized by its median over the parameter test set; 'med'/'max' are over mesh
+% levels N. Uniform Galerkin is seed-independent (inter-seed IQR ~ 0).
+\begin{tabular}{lcccc}
+\toprule
+ & \multicolumn{2}{c}{$p=2$} & \multicolumn{2}{c}{$p=3$} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Experiment & median & max & median & max \\
+\midrule
+Singular & 0.8\% & 9.6\% & 0.9\% & 5.7\% \\
+Helmholtz & 4.2\% & 6.6\% & 6.1\% & 11.0\% \\
+Arctan & 2.1\% & 3.1\% & 2.8\% & 5.0\% \\
+L-shape & 0.9\% & 1.9\% & 1.3\% & 1.6\% \\
+Adv-diff & 7.2\% & 25.8\% & 6.8\% & 22.4\% \\
+\bottomrule
+\end{tabular}

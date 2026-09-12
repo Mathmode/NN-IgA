@@ -1,0 +1,19 @@
+{
+  "experiment": "arctan",
+  "mode": "eval_arctan",
+  "protocol": "val",
+  "split_seed": 20240601,
+  "n_test_tuples": 300,
+  "test_set_seed_independent": true,
+  "p": 3,
+  "seed": 3,
+  "levels": [
+    4,
+    8,
+    16,
+    32,
+    64
+  ],
+  "checkpoint": "data_results/arctan/p3/checkpoints/seed3/checkpoint_final.npz",
+  "remediation_task": "T4 (audit D3)"
+}

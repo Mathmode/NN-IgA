@@ -1,13 +1,22 @@
+# Local environments and Python/tool caches
+.venv/
 __pycache__/
 *.py[cod]
-.DS_Store
-
-# Local experiment outputs
-results*/
-
-# Virtual environments / tooling caches
-.venv/
-venv/
 .pytest_cache/
-.mypy_cache/
 .ruff_cache/
+.DS_Store
+*.egg-info/
+build/
+dist/
+# New run outputs; selected research artifacts remain visible to Git
+outputs/
+Data/
+logs/
+*.out
+*.err
+# TeX build intermediates
+*.aux
+*.log
+*.fls
+*.fdb_latexmk
+*.synctex.gz

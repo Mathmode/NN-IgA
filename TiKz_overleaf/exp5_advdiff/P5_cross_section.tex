@@ -1,0 +1,103 @@
+\documentclass[border=6pt]{standalone}
+\usepackage{pgfplots}
+\usepackage{amsmath}
+\usepgfplotslibrary{groupplots}
+\pgfplotsset{compat=1.18}
+
+\pgfplotsset{
+table/col sep=comma,
+/s/exact/.style    = {black, solid, line width=1.1pt},
+/s/uniform/.style  = {blue, dotted, line width=0.8pt},
+/s/unifmark/.style = {blue, only marks, mark=square, mark size=1.7pt, mark options={solid}},
+/s/radapt/.style   = {orange!90!black, dotted, line width=0.8pt},
+/s/radmark/.style  = {orange!90!black, only marks, mark=o, mark size=1.7pt, mark options={solid}},
+}
+
+\begin{document}
+\begin{tikzpicture}
+\begin{groupplot}[
+group style={group size=3 by 1, horizontal sep=1.3cm},
+width=0.40\textwidth,
+height=0.36\textwidth,
+xmin=0,
+xmax=1,
+enlarge y limits=0.08,
+tick label style={font=\scriptsize},
+title style={font=\small},
+label style={font=\small},
+legend cell align=left,
+legend style={
+font=\footnotesize,
+draw=none,
+fill=none,
+at={(0.03,0.97)},
+anchor=north west
+},
+]
+
+\nextgroupplot[
+title={},
+ylabel={$u(x,0.5)$}
+]
+\addplot[/s/exact]
+table[x=x, y=u_exact] {fielddata/P4_xsection_param1.csv};
+\addlegendentry{$u^{*}$}
+
+\addplot[/s/uniform, forget plot]
+  table[x=x, y=u_uniform] {fielddata/P4_xsection_param1.csv};
+
+\addplot[/s/radapt, forget plot]
+  table[x=x, y=u_radapted] {fielddata/P4_xsection_param1.csv};
+
+\addplot[/s/unifmark, forget plot]
+  table[x=x, y=u_uniform] {fielddata/P4_xsection_markers_param1.csv};
+
+\addplot[/s/radmark, forget plot]
+  table[x=x, y=u_radapted] {fielddata/P4_xsection_markers_radapt_param1.csv};
+
+\addlegendimage{blue, dotted, mark=square, mark size=1.7pt, mark options={solid}}
+\addlegendentry{$u_h$}
+
+\addlegendimage{orange!90!black, dotted, mark=o, mark size=1.7pt, mark options={solid}}
+\addlegendentry{$u_{\theta}^{\nu}$}
+
+\nextgroupplot[
+title={},
+xlabel={$x$}
+]
+\addplot[/s/exact, forget plot]
+table[x=x, y=u_exact] {fielddata/P4_xsection_param2.csv};
+
+\addplot[/s/uniform, forget plot]
+  table[x=x, y=u_uniform] {fielddata/P4_xsection_param2.csv};
+
+\addplot[/s/radapt, forget plot]
+  table[x=x, y=u_radapted] {fielddata/P4_xsection_param2.csv};
+
+\addplot[/s/unifmark, forget plot]
+  table[x=x, y=u_uniform] {fielddata/P4_xsection_markers_param2.csv};
+
+\addplot[/s/radmark, forget plot]
+  table[x=x, y=u_radapted] {fielddata/P4_xsection_markers_radapt_param2.csv};
+
+\nextgroupplot[
+title={}
+]
+\addplot[/s/exact, forget plot]
+table[x=x, y=u_exact] {fielddata/P4_xsection_param3.csv};
+
+\addplot[/s/uniform, forget plot]
+  table[x=x, y=u_uniform] {fielddata/P4_xsection_param3.csv};
+
+\addplot[/s/radapt, forget plot]
+  table[x=x, y=u_radapted] {fielddata/P4_xsection_param3.csv};
+
+\addplot[/s/unifmark, forget plot]
+  table[x=x, y=u_uniform] {fielddata/P4_xsection_markers_param3.csv};
+
+\addplot[/s/radmark, forget plot]
+  table[x=x, y=u_radapted] {fielddata/P4_xsection_markers_radapt_param3.csv};
+
+\end{groupplot}
+\end{tikzpicture}
+\end{document}

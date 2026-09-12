@@ -1,0 +1,3 @@
+[tool.pytest.ini_options]
+addopts = "-v --tb=short -m 'not slow'"
+markers = ["slow: expensive numerical or end-to-end checks, opt in explicitly"]

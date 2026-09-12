@@ -1,0 +1,36 @@
+{
+  "experiment": "helmholtz_contrast_extrap_armB",
+  "arm": "B_extrapolation",
+  "p": 3,
+  "seed": 2,
+  "smoke": false,
+  "protocol": "val",
+  "loss_denom": "uniform",
+  "warm_epochs": 0,
+  "contrast_curriculum": false,
+  "c_split": 3.0,
+  "c_train_range": [
+    1.5,
+    2.9654827413706855
+  ],
+  "c_eval_range": [
+    3.0060030015007504,
+    5.979739869934967
+  ],
+  "levels": [
+    64,
+    96,
+    128
+  ],
+  "epochs_per_level_cap": {
+    "64": 400,
+    "96": 400,
+    "128": 400
+  },
+  "n_train": 26,
+  "n_val": 7,
+  "n_eval_high": 67,
+  "split_seed": 20240601,
+  "final_loss": 0.22223907249607766,
+  "elapsed_sec": 237.08595716801938
+}

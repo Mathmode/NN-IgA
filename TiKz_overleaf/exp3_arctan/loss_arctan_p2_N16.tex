@@ -1,0 +1,73 @@
+\documentclass[11pt,tikz,border=3pt]{standalone}
+\usepackage{amsmath}
+\usepackage{xcolor}
+\usepackage{pgfplots}
+
+\pgfplotsset{compat=1.18}
+\pgfplotsset{
+  table/col sep=comma,
+  table/search path={.}{Images}
+}
+
+\definecolor{surfaceblue}{HTML}{0072B2}
+\definecolor{surfaceorange}{HTML}{D55E00}
+\definecolor{surfacegray}{HTML}{4D4D4D}
+
+\newcommand{\csvfile}{loss_trainval_arctan_p2_N16.csv}
+
+\begin{document}
+
+\begin{tikzpicture}
+\begin{axis}[
+scale only axis,
+width=5.0cm,
+height=3.6cm,
+title={},
+xlabel={Epoch},
+ylabel={$\mathcal{J}_{\mathrm{res}}=\eta^2(\theta_\varphi;\nu)/\eta^2(\theta_0;\nu)$},
+xmode=log,
+ymode=log,
+log basis x=10,
+log basis y=10,
+xmin=1,
+ymin=7.528e-02,
+ymax=1.223e-01,
+grid=none,
+minor tick num=9,
+tick align=outside,
+tick pos=left,
+scaled ticks=false,
+tick label style={font=\footnotesize},
+label style={font=\footnotesize},
+title style={font=\small},
+axis line style={surfacegray},
+tick style={surfacegray},
+enlargelimits=false
+]
+
+\addplot[
+surfaceblue,
+solid,
+line width=1.15pt,
+mark=*,
+mark size=1.45pt,
+mark repeat=16,
+mark options={solid,fill=surfaceblue,draw=surfaceblue}
+]
+table[x=epoch,y=train]{\csvfile};
+
+\addplot[
+surfaceorange,
+densely dashed,
+line width=1.15pt,
+mark=triangle*,
+mark size=1.8pt,
+mark repeat=16,
+mark options={solid,fill=surfaceorange,draw=surfaceorange}
+]
+table[x=epoch,y=val]{\csvfile};
+
+\end{axis}
+\end{tikzpicture}
+
+\end{document}
