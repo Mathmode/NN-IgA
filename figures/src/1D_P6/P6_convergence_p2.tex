@@ -1,0 +1,108 @@
+\documentclass[11pt,tikz,border=2pt]{standalone}
+\usepackage{pgfplots}
+\usepackage{amsmath}
+\usepackage{pgfplotstable}
+\pgfplotsset{compat=1.18}
+\usepgfplotslibrary{fillbetween}
+\usetikzlibrary{arrows.meta}
+
+\pgfplotsset{
+  discard if not/.style 2 args={x filter/.append code={
+    \edef\tempa{\thisrow{#1}}
+    \edef\tempb{#2}
+    \ifx\tempa\tempb
+    \else
+      \def\pgfmathresult{NaN}
+    \fi}},
+  filter discard warning=false,
+  unbounded coords=discard
+}
+
+\pgfplotsset{
+  table/col sep=comma,
+  every axis/.append style={
+    tick label style={font=\footnotesize},
+    label style={font=\footnotesize},
+    legend style={
+      font=\tiny,
+      draw=none,
+      fill=white,
+      fill opacity=0.8,
+      text opacity=1,
+      cells={anchor=west},
+      inner sep=2pt,
+      row sep=-1pt,
+      nodes={scale=0.9,transform shape}
+    },
+    line width=0.9pt,
+    grid=none
+  },
+  /series/.is family,
+  /series/uniform_err/.style={blue,mark=square,solid,line width=1.1pt,mark size=2.2pt},
+  /series/positional_err/.style={orange!90!black,mark=o,solid,line width=1.1pt,mark size=2.6pt},
+  /band/.is family,
+  /band/uniform/.style={draw=none,fill=blue,fill opacity=0.14},
+  /band/positional/.style={draw=none,fill=orange!90!black,fill opacity=0.14}
+}
+
+
+\newcommand{\Sfile}{P6_p2.csv}
+
+\begin{document}
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.65\textwidth,
+  height=0.5\textwidth,
+  title={},
+  xlabel={$N$},
+  ylabel={$\|u^\ast-u_{(\cdot)}\|_{\mathcal E}/\|u^\ast\|_{\mathcal E}$},
+  xmode=log,
+  log basis x=2,
+  xtick={8,16,32,64,128},
+  xmin=7,
+  xmax=146,
+  ymode=log,
+  log basis y=10,
+  legend pos=south west,
+  legend columns=1
+]
+
+\addplot[name path=uniform_lo,draw=none,forget plot,
+  discard if not={p}{2},discard if not={method}{uniform}]
+  table[x=N,y=err_p25]{\Sfile};
+
+\addplot[name path=uniform_hi,draw=none,forget plot,
+  discard if not={p}{2},discard if not={method}{uniform}]
+  table[x=N,y=err_p75]{\Sfile};
+
+\addplot[/band/uniform,forget plot]
+  fill between[of=uniform_lo and uniform_hi];
+
+\addplot[name path=positional_lo,draw=none,forget plot,
+  discard if not={p}{2},discard if not={method}{positional}]
+  table[x=N,y=err_p25]{\Sfile};
+
+\addplot[name path=positional_hi,draw=none,forget plot,
+  discard if not={p}{2},discard if not={method}{positional}]
+  table[x=N,y=err_p75]{\Sfile};
+
+\addplot[/band/positional,forget plot]
+  fill between[of=positional_lo and positional_hi];
+
+\addplot[/series/uniform_err,
+  discard if not={p}{2},discard if not={method}{uniform}]
+  table[x=N,y=err_med]{\Sfile};
+\addlegendentry{$\|u^\ast-u_h\|_{\mathcal E}$}
+
+\addplot[/series/positional_err,
+  discard if not={p}{2},discard if not={method}{positional}]
+  table[x=N,y=err_med]{\Sfile};
+\addlegendentry{$\|u^\ast-u_\theta\|_{\mathcal E}$}
+
+\addplot [gray,dashed,line width=1.0pt,domain=7:146,samples=2]
+  {5.693894e-01*x^(-2)};
+\addlegendentry{$\mathcal{O}(N^{-2})$}
+
+\end{axis}
+\end{tikzpicture}
+\end{document}

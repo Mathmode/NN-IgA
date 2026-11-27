@@ -1,0 +1,133 @@
+\documentclass[11pt,tikz,border=2pt]{standalone}
+
+\begin{filecontents*}[overwrite]{P5_conv_band_p3.csv}
+p,N,method,err_h1_rel_median,err_h1_rel_p25,err_h1_rel_p75
+3,32,positional,2.3118496919e-02,6.5733822940e-03,1.2459539475e-01
+3,48,positional,5.4861179346e-03,1.6588629647e-03,1.3846429642e-02
+3,64,positional,2.0913494940e-03,6.5431214843e-04,4.5725402666e-03
+3,96,positional,5.7618196676e-04,1.8517223458e-04,1.1959721256e-03
+3,128,positional,2.3485184019e-04,7.6563061736e-05,4.7994411951e-04
+3,256,positional,2.8557923975e-05,9.3889412533e-06,5.7085426654e-05
+3,32,uniform,8.4230034258e-02,1.3802913368e-02,1.0075553824e+00
+3,48,uniform,1.5441254308e-02,3.3764815773e-03,9.4249927921e-02
+3,64,uniform,5.6176617720e-03,1.3301410764e-03,1.6395317791e-02
+3,96,uniform,1.4925768897e-03,3.7459774742e-04,3.6122872033e-03
+3,128,uniform,6.0522316676e-04,1.5518717479e-04,1.4241301918e-03
+3,256,uniform,7.2793070795e-05,1.9061367961e-05,1.6641323003e-04
+\end{filecontents*}
+
+\usepackage{pgfplots}
+\usepackage{amsmath}
+\usepackage{pgfplotstable}
+\pgfplotsset{compat=1.18}
+\usepgfplotslibrary{fillbetween}
+\usetikzlibrary{arrows.meta}
+
+\pgfplotsset{
+discard if not/.style 2 args={
+x filter/.append code={
+\edef\tempa{\thisrow{#1}}
+\edef\tempb{#2}
+\ifx\tempa\tempb
+\else
+\def\pgfmathresult{NaN}
+\fi
+}
+},
+filter discard warning=false,
+unbounded coords=discard
+}
+
+\newcommand{\SummaryFile}{P5_conv_band_p3.csv}
+\newcommand{\OrderP}{3}
+
+\pgfplotsset{
+table/col sep=comma,
+every axis/.append style={
+tick label style={font=\footnotesize},
+yticklabel style={font=\footnotesize, text width=2.4em, align=right},
+label style={font=\footnotesize},
+legend style={
+font=\tiny,
+draw=none,
+fill=white,
+fill opacity=0.8,
+text opacity=1,
+cells={anchor=west},
+inner sep=2pt,
+row sep=-1pt,
+nodes={scale=0.9,transform shape}
+},
+line width=0.9pt,
+grid=none
+},
+/series/.is family,
+/series/uniform_err/.style={blue,mark=square,solid,line width=1.1pt,mark size=2.2pt},
+/series/positional_err/.style={orange!90!black,mark=o,solid,line width=1.1pt,mark size=2.6pt},
+/band/.is family,
+/band/uniform/.style={draw=none,fill=blue,fill opacity=0.14},
+/band/positional/.style={draw=none,fill=orange!90!black,fill opacity=0.14}
+}
+
+\begin{document}
+\begin{tikzpicture}
+\begin{axis}[
+scale only axis,
+width=0.65\textwidth,
+height=0.5\textwidth,
+title={},
+xlabel={$N$},
+ylabel={\phantom{$|u^\ast-u_{(\cdot)}|*{H^{1}}/|u^\ast|*{H^{1}}$}},
+xmode=log,
+log basis x=2,
+xtick={32,64,128,256},
+xticklabels={$2^5$,$2^6$,$2^7$,$2^8$},
+xmin=28,
+xmax=300,
+ymin=1e-5,
+ymax=1e0,
+ymode=log,
+log basis y=10,
+legend pos=south west,
+legend columns=1
+]
+
+\addplot[name path=u_lo,draw=none,forget plot,
+discard if not={p}{\OrderP},discard if not={method}{uniform}]
+table[x=N,y=err_h1_rel_p25]{\SummaryFile};
+
+\addplot[name path=u_hi,draw=none,forget plot,
+discard if not={p}{\OrderP},discard if not={method}{uniform}]
+table[x=N,y=err_h1_rel_p75]{\SummaryFile};
+
+\addplot[/band/uniform,forget plot]
+fill between[of=u_lo and u_hi];
+
+\addplot[name path=p_lo,draw=none,forget plot,
+discard if not={p}{\OrderP},discard if not={method}{positional}]
+table[x=N,y=err_h1_rel_p25]{\SummaryFile};
+
+\addplot[name path=p_hi,draw=none,forget plot,
+discard if not={p}{\OrderP},discard if not={method}{positional}]
+table[x=N,y=err_h1_rel_p75]{\SummaryFile};
+
+\addplot[/band/positional,forget plot]
+fill between[of=p_lo and p_hi];
+
+\addplot[/series/uniform_err,
+discard if not={p}{\OrderP},discard if not={method}{uniform}]
+table[x=N,y=err_h1_rel_median]{\SummaryFile};
+\addlegendentry{$|u^\ast-u_h|_{H^1}$}
+
+\addplot[/series/positional_err,
+discard if not={p}{\OrderP},discard if not={method}{positional}]
+table[x=N,y=err_h1_rel_median]{\SummaryFile};
+\addlegendentry{$|u^\ast-u_\theta|_{H^1}$}
+
+\addplot[gray,dashed,line width=1.0pt,domain=32:256,samples=2]
+{1.221265e+03*x^(-3)};
+\addlegendentry{$\mathcal{O}(N^{-3})$}
+
+\end{axis}
+\end{tikzpicture}
+\end{document}

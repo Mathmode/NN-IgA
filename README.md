@@ -44,6 +44,7 @@ same import name and must be used in separate processes.
 - `data_results/`: selected research outputs, small checkpoints and evaluation
   samples used by the retained post-processing workflows.
 - `references/`: L-shape reference cache and its provenance/checksum.
+- [figures/](figures/): final vector figures with the matching editable TikZ sources and plot data in [figures/src/](figures/src/).
 - `TiKz_overleaf/`: figure/table sources and associated numeric resources.
 
 ## Experiments and reproducibility

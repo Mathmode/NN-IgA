@@ -1,0 +1,40 @@
+\documentclass[border=10pt]{standalone}
+\usepackage{pgfplots}
+\usepackage{amsmath}
+\pgfplotsset{compat=1.18}
+
+\begin{document}
+\begin{tikzpicture}
+\begin{axis}[
+    width=0.56\textwidth, height=0.42\textwidth,
+    title={},
+    xlabel={$x$}, ylabel={$u(x)$}, xmin=0, xmax=1, enlarge y limits={upper,value=0.3},
+    every axis plot/.append style={line width=0.9pt},
+    tick label style={font=\small},
+    label style={font=\small},
+    title style={font=\small},
+    legend cell align=left,
+    legend style={
+        font=\footnotesize,
+        draw=none,
+        fill=none,
+        fill opacity=0.85,
+        at={(0.78,1.03)},
+        anchor=north west
+    },
+]
+  \addplot[black, solid]
+    table[col sep=comma, x=x, y=u_exact] {curves_c5_N34.csv};
+  \addlegendentry{$u^{*}$}
+
+  \addplot[blue, dotted, line width=1.1pt, forget plot]
+    table[col sep=comma, x=x, y=u_uniform] {curves_c5_N34.csv};
+
+  \addplot[blue, only marks, mark=square, mark size=1.6pt, mark options={solid}, forget plot]
+    table[col sep=comma, x=x_u, y=u_u] {greville_c5_N34.csv};
+
+  \addlegendimage{blue, dotted, mark=square, mark size=1.6pt, mark options={solid}}
+  \addlegendentry{$u_{h}$}
+\end{axis}
+\end{tikzpicture}
+\end{document}

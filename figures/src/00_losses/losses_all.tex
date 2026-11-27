@@ -1,0 +1,57 @@
+\documentclass[11pt,tikz,border=3pt]{standalone}
+\usepackage{amsmath}
+\usepackage{xcolor}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepgfplotslibrary{groupplots}
+\usetikzlibrary{calc}
+\pgfplotsset{table/col sep=comma}
+\definecolor{surfaceblue}{HTML}{0072B2}
+\definecolor{surfaceorange}{HTML}{D55E00}
+\definecolor{surfacegray}{HTML}{4D4D4D}
+\begin{document}
+\begin{tikzpicture}
+\begin{groupplot}[
+  group style={group size=5 by 2,horizontal sep=1.1cm,vertical sep=0.75cm,xlabels at=edge bottom},
+  scale only axis,width=2.55cm,height=2.0cm,
+  xlabel={Epoch},xmode=log,ymode=log,log basis x=10,log basis y=10,xmin=1,
+  grid=none,tick align=outside,tick pos=left,scaled ticks=false,
+  tick label style={font=\scriptsize},label style={font=\footnotesize},title style={font=\footnotesize},
+  axis line style={surfacegray},tick style={surfacegray},enlarge y limits=0.06,enlarge x limits=false,
+  ]
+\nextgroupplot[title={Exp.~1, $N=4$},ylabel={$p=2$: \ $\mathcal{J}_{\mathrm{res}}$}]
+\addplot[surfaceblue,solid,line width=1.0pt,mark=*,mark size=1.2pt,mark repeat=8,mark options={solid,fill=surfaceblue,draw=surfaceblue}] table[x=epoch,y=train]{loss_trainval_singular_p2_N4.csv};
+\label{pl:train}
+\addplot[surfaceorange,densely dashed,line width=1.0pt,mark=triangle*,mark size=1.5pt,mark repeat=8,mark options={solid,fill=surfaceorange,draw=surfaceorange}] table[x=epoch,y=val]{loss_trainval_singular_p2_N4.csv};
+\label{pl:val}
+\nextgroupplot[title={Exp.~2, $N=64$}]
+\addplot[surfaceblue,solid,line width=1.0pt,mark=*,mark size=1.2pt,mark repeat=23,mark options={solid,fill=surfaceblue,draw=surfaceblue}] table[x=epoch,y=train]{loss_trainval_helmholtz_p2_N64.csv};
+\addplot[surfaceorange,densely dashed,line width=1.0pt,mark=triangle*,mark size=1.5pt,mark repeat=23,mark options={solid,fill=surfaceorange,draw=surfaceorange}] table[x=epoch,y=val]{loss_trainval_helmholtz_p2_N64.csv};
+\nextgroupplot[title={Exp.~3, $N=4$}]
+\addplot[surfaceblue,solid,line width=1.0pt,mark=*,mark size=1.2pt,mark repeat=30,mark options={solid,fill=surfaceblue,draw=surfaceblue}] table[x=epoch,y=train]{loss_trainval_arctan_p2_N4.csv};
+\addplot[surfaceorange,densely dashed,line width=1.0pt,mark=triangle*,mark size=1.5pt,mark repeat=30,mark options={solid,fill=surfaceorange,draw=surfaceorange}] table[x=epoch,y=val]{loss_trainval_arctan_p2_N4.csv};
+\nextgroupplot[title={Exp.~4, $N=8$}]
+\addplot[surfaceblue,solid,line width=1.0pt,mark=*,mark size=1.2pt,mark repeat=19,mark options={solid,fill=surfaceblue,draw=surfaceblue}] table[x=epoch,y=train]{loss_trainval_lshape_p2_N8.csv};
+\addplot[surfaceorange,densely dashed,line width=1.0pt,mark=triangle*,mark size=1.5pt,mark repeat=19,mark options={solid,fill=surfaceorange,draw=surfaceorange}] table[x=epoch,y=val]{loss_trainval_lshape_p2_N8.csv};
+\nextgroupplot[title={Exp.~5, $N=8$}]
+\addplot[surfaceblue,solid,line width=1.0pt,mark=*,mark size=1.2pt,mark repeat=16,mark options={solid,fill=surfaceblue,draw=surfaceblue}] table[x=epoch,y=train]{loss_trainval_advdiff_p2_N8.csv};
+\addplot[surfaceorange,densely dashed,line width=1.0pt,mark=triangle*,mark size=1.5pt,mark repeat=16,mark options={solid,fill=surfaceorange,draw=surfaceorange}] table[x=epoch,y=val]{loss_trainval_advdiff_p2_N8.csv};
+\nextgroupplot[ylabel={$p=3$: \ $\mathcal{J}_{\mathrm{res}}$}]
+\addplot[surfaceblue,solid,line width=1.0pt,mark=*,mark size=1.2pt,mark repeat=7,mark options={solid,fill=surfaceblue,draw=surfaceblue}] table[x=epoch,y=train]{loss_trainval_singular_p3_N4.csv};
+\addplot[surfaceorange,densely dashed,line width=1.0pt,mark=triangle*,mark size=1.5pt,mark repeat=7,mark options={solid,fill=surfaceorange,draw=surfaceorange}] table[x=epoch,y=val]{loss_trainval_singular_p3_N4.csv};
+\nextgroupplot[]
+\addplot[surfaceblue,solid,line width=1.0pt,mark=*,mark size=1.2pt,mark repeat=24,mark options={solid,fill=surfaceblue,draw=surfaceblue}] table[x=epoch,y=train]{loss_trainval_helmholtz_p3_N64.csv};
+\addplot[surfaceorange,densely dashed,line width=1.0pt,mark=triangle*,mark size=1.5pt,mark repeat=24,mark options={solid,fill=surfaceorange,draw=surfaceorange}] table[x=epoch,y=val]{loss_trainval_helmholtz_p3_N64.csv};
+\nextgroupplot[]
+\addplot[surfaceblue,solid,line width=1.0pt,mark=*,mark size=1.2pt,mark repeat=25,mark options={solid,fill=surfaceblue,draw=surfaceblue}] table[x=epoch,y=train]{loss_trainval_arctan_p3_N4.csv};
+\addplot[surfaceorange,densely dashed,line width=1.0pt,mark=triangle*,mark size=1.5pt,mark repeat=25,mark options={solid,fill=surfaceorange,draw=surfaceorange}] table[x=epoch,y=val]{loss_trainval_arctan_p3_N4.csv};
+\nextgroupplot[]
+\addplot[surfaceblue,solid,line width=1.0pt,mark=*,mark size=1.2pt,mark repeat=20,mark options={solid,fill=surfaceblue,draw=surfaceblue}] table[x=epoch,y=train]{loss_trainval_lshape_p3_N8.csv};
+\addplot[surfaceorange,densely dashed,line width=1.0pt,mark=triangle*,mark size=1.5pt,mark repeat=20,mark options={solid,fill=surfaceorange,draw=surfaceorange}] table[x=epoch,y=val]{loss_trainval_lshape_p3_N8.csv};
+\nextgroupplot[]
+\addplot[surfaceblue,solid,line width=1.0pt,mark=*,mark size=1.2pt,mark repeat=34,mark options={solid,fill=surfaceblue,draw=surfaceblue}] table[x=epoch,y=train]{loss_trainval_advdiff_p3_N8.csv};
+\addplot[surfaceorange,densely dashed,line width=1.0pt,mark=triangle*,mark size=1.5pt,mark repeat=34,mark options={solid,fill=surfaceorange,draw=surfaceorange}] table[x=epoch,y=val]{loss_trainval_advdiff_p3_N8.csv};
+\end{groupplot}
+\node[anchor=south,font=\footnotesize] at ($(group c3r1.north)+(0,0.62)$) {\ref{pl:train}~training \qquad \ref{pl:val}~validation};
+\end{tikzpicture}
+\end{document}
