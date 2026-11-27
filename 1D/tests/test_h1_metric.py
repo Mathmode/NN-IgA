@@ -59,7 +59,7 @@ from src.parametric.positional_density_network import (  # noqa: E402
 )
 
 
-CHECKPOINT_DIR = VF_ROOT / "results" / "checkpoints"
+CHECKPOINT_DIR = VF_ROOT.parent / "data_results" / "singular" / "p3" / "checkpoints"
 
 
 @pytest.mark.parametrize("beta,seed", [

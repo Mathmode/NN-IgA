@@ -1,0 +1,48 @@
+{
+  "experiment": "helmholtz_contrast",
+  "p": 2,
+  "seed": 2,
+  "smoke": false,
+  "protocol": "val",
+  "param": "contrast",
+  "mesh": "global",
+  "loss_denom": "uniform",
+  "levels": [
+    64,
+    96,
+    128
+  ],
+  "epochs_per_level": {
+    "64": 400,
+    "96": 400,
+    "128": 400
+  },
+  "warm_epochs": 60,
+  "n_train": 70,
+  "n_test": 15,
+  "hidden_dims": [
+    32,
+    32
+  ],
+  "g_min_target": 2.5,
+  "use_hmax": true,
+  "final_loss": 0.22709814020049635,
+  "elapsed_sec": 230.2079647579958,
+  "peak_rss_mb": 1056.80078125,
+  "hardware": {
+    "platform": "Linux-4.18.0-553.146.1.el8_10.x86_64-x86_64-with-glibc2.28",
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "cpu_count": 64,
+    "slurm_cpus": "4",
+    "host": "hyperion-276",
+    "cpu_model": "Intel(R) Xeon(R) Platinum 8362 CPU @ 2.80GHz"
+  },
+  "split_seed": 20240601,
+  "n_val": 15,
+  "best_val_eta2": {
+    "64": 0.2261451157047781,
+    "96": 0.2120569978307439,
+    "128": 0.21099009880178118
+  }
+}

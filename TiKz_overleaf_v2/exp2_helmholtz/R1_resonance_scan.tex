@@ -1,0 +1,65 @@
+\documentclass[11pt,tikz,border=2pt]{standalone}
+\usepackage{pgfplots}
+\usepackage{amsmath}
+\pgfplotsset{compat=1.18}
+\usepgfplotslibrary{groupplots}
+\pgfplotsset{
+table/col sep=comma,
+every axis/.append style={
+tick label style={font=\footnotesize},
+label style={font=\footnotesize},
+title style={font=\footnotesize},
+legend style={font=\tiny,draw=none,fill=white,fill opacity=0.8,text opacity=1,cells={anchor=west}},
+line width=0.9pt,
+grid=none
+},
+/series/uniform/.style={blue,solid,line width=1.0pt},
+/series/adapted/.style={orange!90!black,solid,line width=1.0pt},
+/series/exact/.style={black,densely dashed,line width=0.8pt}
+}
+
+\begin{document}
+\begin{tikzpicture}
+\begin{groupplot}[
+group style={group size=2 by 2,horizontal sep=1.6cm,vertical sep=1.4cm,xlabels at=edge bottom,ylabels at=edge left},
+width=0.47\textwidth,height=0.34\textwidth,scale only axis,
+xmin=4.5,xmax=5.5,ymode=log,ymin=1e-4,ymax=1e3,
+xlabel={contrast $c$},ylabel={$|u^\ast-u_{(\cdot)}|_{H^1}/|u^\ast|_{H^1}$},
+legend pos=north west,clip=true]
+\nextgroupplot[title={$p=2$, $N=32$}]
+\addplot[/series/uniform] table[x=c,y=uniform]{R1_scan_p2_N32.csv};
+\addlegendentry{uniform}
+\addplot[/series/adapted] table[x=c,y=adapted]{R1_scan_p2_N32.csv};
+\addlegendentry{adapted}
+\draw[gray,dashed,line width=0.6pt] (axis cs:4.8,1e-6) -- (axis cs:4.8,1e3);
+\draw[gray,dashed,line width=0.6pt] (axis cs:5.2,1e-6) -- (axis cs:5.2,1e3);
+\draw[blue,dotted,line width=0.8pt] (axis cs:5.006973,1e-6) -- (axis cs:5.006973,1e3);
+\draw[blue,dotted,line width=0.8pt] (axis cs:5.495419,1e-6) -- (axis cs:5.495419,1e3);
+\draw[black!60,line width=0.4pt] (axis cs:5.0005,1e-6) -- (axis cs:5.0005,1e3);
+\nextgroupplot[title={$p=2$, $N=64$}]
+\addplot[/series/uniform] table[x=c,y=uniform]{R1_scan_p2_N64.csv};
+\addplot[/series/adapted] table[x=c,y=adapted]{R1_scan_p2_N64.csv};
+\draw[gray,dashed,line width=0.6pt] (axis cs:4.8,1e-6) -- (axis cs:4.8,1e3);
+\draw[gray,dashed,line width=0.6pt] (axis cs:5.2,1e-6) -- (axis cs:5.2,1e3);
+\draw[blue,dotted,line width=0.8pt] (axis cs:4.808414,1e-6) -- (axis cs:4.808414,1e3);
+\draw[blue,dotted,line width=0.8pt] (axis cs:5.213085,1e-6) -- (axis cs:5.213085,1e3);
+\draw[black!60,line width=0.4pt] (axis cs:5.0005,1e-6) -- (axis cs:5.0005,1e3);
+\nextgroupplot[title={$p=3$, $N=32$}]
+\addplot[/series/uniform] table[x=c,y=uniform]{R1_scan_p3_N32.csv};
+\addplot[/series/adapted] table[x=c,y=adapted]{R1_scan_p3_N32.csv};
+\draw[gray,dashed,line width=0.6pt] (axis cs:4.8,1e-6) -- (axis cs:4.8,1e3);
+\draw[gray,dashed,line width=0.6pt] (axis cs:5.2,1e-6) -- (axis cs:5.2,1e3);
+\draw[blue,dotted,line width=0.8pt] (axis cs:4.856902,1e-6) -- (axis cs:4.856902,1e3);
+\draw[blue,dotted,line width=0.8pt] (axis cs:5.302927,1e-6) -- (axis cs:5.302927,1e3);
+\draw[black!60,line width=0.4pt] (axis cs:5.0005,1e-6) -- (axis cs:5.0005,1e3);
+\nextgroupplot[title={$p=3$, $N=64$}]
+\addplot[/series/uniform] table[x=c,y=uniform]{R1_scan_p3_N64.csv};
+\addplot[/series/adapted] table[x=c,y=adapted]{R1_scan_p3_N64.csv};
+\draw[gray,dashed,line width=0.6pt] (axis cs:4.8,1e-6) -- (axis cs:4.8,1e3);
+\draw[gray,dashed,line width=0.6pt] (axis cs:5.2,1e-6) -- (axis cs:5.2,1e3);
+\draw[blue,dotted,line width=0.8pt] (axis cs:4.800378,1e-6) -- (axis cs:4.800378,1e3);
+\draw[blue,dotted,line width=0.8pt] (axis cs:5.200719,1e-6) -- (axis cs:5.200719,1e3);
+\draw[black!60,line width=0.4pt] (axis cs:5.0005,1e-6) -- (axis cs:5.0005,1e3);
+\end{groupplot}
+\end{tikzpicture}
+\end{document}

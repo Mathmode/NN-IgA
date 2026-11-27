@@ -2,7 +2,6 @@
 
 - `make_tables.py`: historical table aggregation; `--check` checks stored cells.
 - `make_figure_bands.py`: bands using the table data pipeline.
-- `consolidate_experiment.py`: builds the labelled `Data/` result tree.
 - `compare_nonparametric_1d.py`, `compare_nonparametric_2d.py`: per-instance versus
   network mesh studies, requiring retained checkpoints.
 - `reference_accuracy_check.py`: expensive L-shape reference self-convergence diagnostic.

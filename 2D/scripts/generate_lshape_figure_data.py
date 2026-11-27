@@ -2,18 +2,20 @@
 """Regenerate the L-shape (Experiment 4) SOLUTION + MESH figure data from the CURRENT
 checkpoints, into ``TiKz_overleaf/exp4_lshape/``:
   * ``fielddata/P3_heat_p{2,3}_param{1,2,3}.csv`` -- discrete solution u_h on an 81x81
-    grid over [0,1]^2 (r-adapted mesh, N=20, seed0/checkpoint_final), columns x,y,z.
+    grid over [0,1]^2 (r-adapted mesh, N=16, seed0/checkpoint_final), columns x,y,z.
   * ``meshdata/P3_mesh_p{2,3}_param{1,2,3}_{uniform,radapted}.dat`` -- knot grid lines
     with the L-shape cutout (removed quadrant x>0.5 & y<0.5).
 
 Heatmap = discrete r-adapted solution (same solve that feeds the gradient panels).
 The gradient ZOOM is generated separately (generate_lshape_gradient_zoom.py, log scale).
-Recipe (memory: lshape-figure-data-generator): N=20, seed0; r-adapt knots via
+Recipe (memory: lshape-figure-data-generator): N=16, seed0; r-adapt knots via
 ``knots_p3_from_network_axis``, uniform via ``theta_to_knots_lshape``; solve
 ``galerkin_solve_lshape(..., n_eff=p3_effective_n_elem(N,p), q_K=p+1, q_F=4)``.
 
 Run from the repo root:  python 2D/scripts/generate_lshape_figure_data.py
 """
+import argparse
+import json
 import os, sys
 os.environ.setdefault("JAX_ENABLE_X64", "1")
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -66,14 +68,6 @@ def write_heat(path, g, Z):
                 f.write(f"{x:.6f},{y:.6f},{Z[ix, iy]:.6e}\n")
 
 
-def unique_knots(kv, tol=1e-7):
-    out = []
-    for v in np.sort(np.asarray(kv)):
-        if not out or abs(v - out[-1]) > tol:
-            out.append(float(v))
-    return out
-
-
 def mesh_segments(xk, yk, lo=0.0, hi=1.0):
     """Knot grid lines with the L-shape cutout (removed quadrant x>0.5 & y<0.5),
     clipped to [lo,hi]. Vertical lines first, then horizontal."""
@@ -93,26 +87,36 @@ def mesh_segments(xk, yk, lo=0.0, hi=1.0):
 
 def write_mesh(path, segs):
     with open(path, "w") as f:
-        f.write("\n\n".join(f"{a[0]:.6f} {a[1]:.6f}\n{b[0]:.6f} {b[1]:.6f}" for a, b in segs) + "\n\n")
+        f.write("\n\n".join(f"{a[0]:.17g} {a[1]:.17g}\n{b[0]:.17g} {b[1]:.17g}" for a, b in segs) + "\n")
 
 
 def main():
-    os.makedirs(os.path.join(OUT, "fielddata"), exist_ok=True)
-    os.makedirs(os.path.join(OUT, "meshdata"), exist_ok=True)
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--checkpoint-root", default=os.path.join(_ROOT, "data_results/lshape"))
+    ap.add_argument("--output-dir", default=OUT)
+    args = ap.parse_args()
+    out = args.output_dir
+    os.makedirs(os.path.join(out, "fielddata"), exist_ok=True)
+    os.makedirs(os.path.join(out, "meshdata"), exist_ok=True)
+    with open(os.path.join(out, "params_used.json"), "w") as f:
+        json.dump(dict(N=N, seed=0, sigma_pairs=PARAMS, methods=["uniform", "radapted"]), f, indent=2)
+        f.write("\n")
     for p in (2, 3):
         params = load_checkpoint(os.path.join(
-            _ROOT, f"data_results/lshape/p{p}/checkpoints/seed0/checkpoint_final.npz"))
+            args.checkpoint_root, f"p{p}/checkpoints/seed0/checkpoint_final.npz"))
         for name, sigma in PARAMS.items():
             kxr, kyr, Cr = solve(params, sigma, p, "radapt")
-            kxu, kyu, _Cu = solve(params, sigma, p, "uniform")
+            kxu, kyu, Cu = solve(params, sigma, p, "uniform")
             g, Z = u_on_grid(Cr, kxr, kyr, p)
-            write_heat(os.path.join(OUT, f"fielddata/P3_heat_p{p}_{name}.csv"), g, Z)
-            write_mesh(os.path.join(OUT, f"meshdata/P3_mesh_p{p}_{name}_radapted.dat"),
-                       mesh_segments(unique_knots(kxr), unique_knots(kyr)))
-            write_mesh(os.path.join(OUT, f"meshdata/P3_mesh_p{p}_{name}_uniform.dat"),
-                       mesh_segments(unique_knots(kxu), unique_knots(kyu)))
+            write_heat(os.path.join(out, f"fielddata/P3_heat_p{p}_{name}.csv"), g, Z)
+            _, Zu = u_on_grid(Cu, kxu, kyu, p)
+            write_heat(os.path.join(out, f"fielddata/P3_heat_p{p}_{name}_uniform.csv"), g, Zu)
+            write_mesh(os.path.join(out, f"meshdata/P3_mesh_p{p}_{name}_radapted.dat"),
+                       mesh_segments(np.unique(kxr), np.unique(kyr)))
+            write_mesh(os.path.join(out, f"meshdata/P3_mesh_p{p}_{name}_uniform.dat"),
+                       mesh_segments(np.unique(kxu), np.unique(kyu)))
             print(f"  p{p} {name} sigma={sigma}: u_h peak={Z.max():.4e}")
-    print(f"DONE -> {OUT}/fielddata + meshdata")
+    print(f"DONE -> {out}/fielddata + meshdata")
 
 
 if __name__ == "__main__":

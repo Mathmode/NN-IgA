@@ -57,6 +57,11 @@ from src.parametric.positional_density_network import (
 )
 from src.lhs_sampling import generate_splits
 
+CKPT_P3_SEED0 = (
+    Path(__file__).resolve().parents[2]
+    / "data_results/singular/p3/checkpoints/p3_seed0/checkpoint_final.npz"
+)
+
 
 # -----------------------------------------------------------------------------
 # 1. R^2 strictly positive in the constructed cancellation regime
@@ -79,10 +84,7 @@ def test_R2_positive_when_uh_double_prime_matches_minus_f():
     R^2_analytic ≤ 0 — it only requires that the hybrid output stays
     strictly positive.
     """
-    ckpt = (
-        Path(__file__).resolve().parents[1]
-        / "results_p1_unif_p3/checkpoints/p3_seed0/checkpoint_final.npz"
-    )
+    ckpt = CKPT_P3_SEED0
     if not ckpt.exists():
         pytest.skip(f"checkpoint not available: {ckpt}")
     params = load_checkpoint(ckpt)
@@ -157,10 +159,7 @@ def test_old_t_coords_formula_does_produce_zero_etas():
     refactor of the integrate_poly_times_power_t primitive becomes
     more cancellation-resistant), this test will FAIL and remind the
     author that the cancellation pattern has shifted."""
-    ckpt = (
-        Path(__file__).resolve().parents[1]
-        / "results_p1_unif_p3/checkpoints/p3_seed0/checkpoint_final.npz"
-    )
+    ckpt = CKPT_P3_SEED0
     if not ckpt.exists():
         pytest.skip(f"checkpoint not available: {ckpt}")
     params = load_checkpoint(ckpt)
@@ -233,10 +232,7 @@ def test_eta_positive_on_bug_regime_p3(N: int):
     """On the real singular p = 3 checkpoint in the bug-affected N regime,
     every test-β must now produce ``eta > 0``. Pre-fix this row class
     contained ~10 % spurious zeros."""
-    ckpt = (
-        Path(__file__).resolve().parents[1]
-        / "results_p1_unif_p3/checkpoints/p3_seed0/checkpoint_final.npz"
-    )
+    ckpt = CKPT_P3_SEED0
     if not ckpt.exists():
         pytest.skip(f"checkpoint not available: {ckpt}")
     params = load_checkpoint(ckpt)
@@ -352,10 +348,7 @@ def test_grad_through_estimator_loss_is_finite():
     )
 
     # Cancelling regime: trained p=3 singular checkpoint at N=32.
-    ckpt = (
-        Path(__file__).resolve().parents[1]
-        / "results_p1_unif_p3/checkpoints/p3_seed0/checkpoint_final.npz"
-    )
+    ckpt = CKPT_P3_SEED0
     if not ckpt.exists():
         pytest.skip(f"checkpoint not available: {ckpt}")
     params = load_checkpoint(ckpt)

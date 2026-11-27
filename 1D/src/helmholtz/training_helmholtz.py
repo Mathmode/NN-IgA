@@ -2,18 +2,14 @@ from __future__ import annotations
 
 """Coarse-to-fine continuation training for the helmholtz experiment (1D Helmholtz).
 
-Loss (residual-normalized, IDENTICAL normalization to the singular pipeline -- eta^2
-divided by the squared analytic H1 seminorm of the exact field):
+The parameter is the wavenumber contrast c = k1/k2 and the mesh is the global
+knot map of ``mesh_helmholtz_global`` (free element split across the C^0
+interface). Loss (eq. 26): eta^2(theta_phi(c); c) / (eta^2(theta_unif^{(N)}; c) + eps),
+averaged with the 1/(2n) factor over the training contrasts.
 
-    L(params; omega, p, N) = eta^2(theta_phi(omega), p, N, omega) / (|u*_omega|^2_{H1} + eps)
-
-The per-omega denominator |u*_omega|^2_{H1} is precomputed on the host from the
-analytic transmission solution (it does not depend on the network), so the loss
-is a clean parameter-only objective; mini-batches over omega mix gracefully.
-
-Continuation: the N-independent network is trained level-by-level (16->32->64->
-128), warm-starting each level from the previous (same weights serve every N).
-AdamW, mirroring singular.
+Continuation: the N-independent network is trained level-by-level, warm-starting
+each level from the previous (same weights serve every N), with a high-contrast
+warm phase at the coarsest level (see ``train_with_continuation_contrast``).
 """
 
 import time
@@ -31,31 +27,9 @@ from src.helmholtz.network_helmholtz import params_to_flat_dict as _params_to_fl
 import optax
 
 from src.config import EPSILON_DENOM
-from src.helmholtz.discretization_helmholtz import quad_order, solve_state_helmholtz
-from src.helmholtz.estimator_helmholtz import eta_squared
-from src.helmholtz.network_helmholtz import PDNParamsH, init_params, knots_from_network
-from src.helmholtz.pde_helmholtz import helmholtz_exact
+from src.helmholtz.network_helmholtz import PDNParamsH, init_params
 
 Array = jnp.ndarray
-
-
-def h1_denominators(omegas: np.ndarray) -> np.ndarray:
-    """Per-omega |u*_omega|^2_{H1} (host, analytic) used as the loss denominator."""
-    return np.array([helmholtz_exact(float(w)).h1_seminorm() ** 2 for w in np.asarray(omegas)],
-                    dtype=np.float64)
-
-
-def _make_per_omega_loss(p: int, N: int, T: float, h_min: float):
-    nq = quad_order(int(p))
-
-    def per_omega_loss(params: PDNParamsH, omega: Array, denom: Array) -> Array:
-        omega_t = jnp.asarray(omega, dtype=DEFAULT_DTYPE)
-        knots = knots_from_network(params, omega_t, int(N), int(p), T=float(T), h_min=float(h_min))
-        u = solve_state_helmholtz(knots, int(p), omega_t, nq)
-        e2 = eta_squared(knots, int(p), u, omega_t, nq)
-        return e2 / (jnp.asarray(denom, dtype=DEFAULT_DTYPE) + jnp.asarray(EPSILON_DENOM, dtype=DEFAULT_DTYPE))
-
-    return per_omega_loss
 
 
 @dataclass
@@ -71,66 +45,6 @@ class ContinuationResultH:
     per_level: List[LevelResult]
     levels_done: List[int]
     elapsed_sec: float
-
-
-def train_with_continuation(
-    *,
-    p: int,
-    seed: int,
-    train_omegas: np.ndarray,
-    levels: Tuple[int, ...],
-    epochs_per_level: Dict[int, int],
-    hidden_dims=(32, 32),
-    input_dim: int = 3,
-    T: float = 5.0,
-    h_min: float = 1e-7,
-    lr: float = 1e-3,
-    weight_decay: float = 1e-6,
-    batch_size: int = 16,
-) -> ContinuationResultH:
-    train_omegas = np.asarray(train_omegas, dtype=np.float64).reshape(-1)
-    denoms = h1_denominators(train_omegas)
-
-    params = init_params(int(seed), input_dim=int(input_dim), hidden_dims=tuple(hidden_dims))
-    optimizer = optax.adamw(float(lr), weight_decay=float(weight_decay))
-    opt_state = optimizer.init(params)
-
-    per_level: List[LevelResult] = []
-    t0 = time.perf_counter()
-    rng = np.random.default_rng(int(seed))
-    n = train_omegas.shape[0]
-
-    for li, N in enumerate(int(x) for x in levels):
-        per_omega_loss = _make_per_omega_loss(int(p), int(N), float(T), float(h_min))
-
-        def batch_loss(params, oms, dns):
-            return jnp.mean(jax.vmap(lambda o, d: per_omega_loss(params, o, d))(oms, dns))
-
-        loss_and_grad = jax.jit(jax.value_and_grad(batch_loss))
-        ep = int(epochs_per_level.get(int(N), 100))
-        hist: List[dict] = []
-        last = float("nan")
-        for epoch in range(ep):
-            idx = rng.permutation(n)
-            acc, nb = 0.0, 0
-            for b0 in range(0, n, int(batch_size)):
-                sel = idx[b0 : b0 + int(batch_size)]
-                oms = jnp.asarray(train_omegas[sel], dtype=DEFAULT_DTYPE)
-                dns = jnp.asarray(denoms[sel], dtype=DEFAULT_DTYPE)
-                lv, grads = loss_and_grad(params, oms, dns)
-                updates, opt_state = optimizer.update(grads, opt_state, params)
-                params = optax.apply_updates(params, updates)
-                acc += float(lv); nb += 1
-            last = acc / max(nb, 1)
-            hist.append({"level_N": int(N), "epoch": int(epoch), "train_loss": float(last),
-                         "time_sec": float(time.perf_counter() - t0)})
-        per_level.append(LevelResult(params=params, final_loss=float(last), history=hist))
-        print(f"  [HELMHOLTZ continuation] level N={N} done: {ep} epochs, final_loss={last:.4e}", flush=True)
-
-    return ContinuationResultH(
-        params_final=params, per_level=per_level,
-        levels_done=[int(x) for x in levels], elapsed_sec=float(time.perf_counter() - t0),
-    )
 
 
 # ==========================================================================
@@ -419,5 +333,5 @@ def train_with_continuation_contrast(
                                levels_done=list(levels), elapsed_sec=float(time.perf_counter() - t0))
 
 
-__all__ = ["h1_denominators", "train_with_continuation", "ContinuationResultH", "LevelResult",
+__all__ = ["ContinuationResultH", "LevelResult",
            "contrast_denominators", "train_with_continuation_contrast"]

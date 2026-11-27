@@ -25,6 +25,7 @@ from common._precision import DEFAULT_DTYPE, ensure_double_precision
 ensure_double_precision()
 
 import jax
+import numpy as np
 import jax.numpy as jnp
 from jax.tree_util import register_pytree_node_class
 
@@ -43,19 +44,22 @@ class PDN2DParams:
 
     layers: list[tuple[Array, Array]]
 
+    level_feature: bool = False
+    mesh_schedule: tuple = ()
+
     def tree_flatten(self):
         children = tuple(t for layer in self.layers for t in layer)
-        aux_data = (len(self.layers),)
+        aux_data = (len(self.layers), self.level_feature, self.mesh_schedule)
         return children, aux_data
 
     @classmethod
     def tree_unflatten(cls, aux_data, children):
-        (n_layers,) = aux_data
+        n_layers, level_feature, mesh_schedule = aux_data
         layers = []
         for i in range(n_layers):
             W, b = children[2 * i], children[2 * i + 1]
             layers.append((W, b))
-        return cls(layers=layers)
+        return cls(layers, level_feature, mesh_schedule)
 
 
 def _layer_sizes(sigma_dim: int, hidden_dims: Tuple[int, ...]) -> Tuple[int, ...]:
@@ -68,9 +72,11 @@ def init_params(
     *,
     sigma_dim: int = 3,
     hidden_dims: Tuple[int, ...] = (10, 10),
+    level_feature: bool = False,
+    mesh_schedule: tuple = (),
 ) -> PDN2DParams:
     """LeCun initialisation (std = sqrt(1 / fan_in)) for a tanh MLP."""
-    sizes = _layer_sizes(int(sigma_dim), tuple(hidden_dims))
+    sizes = _layer_sizes(int(sigma_dim) + int(level_feature), tuple(hidden_dims))
     key = jax.random.PRNGKey(int(seed))
     layers: list[tuple[Array, Array]] = []
     for i in range(len(sizes) - 1):
@@ -80,7 +86,7 @@ def init_params(
         W = std * jax.random.normal(k_w, (fan_in, fan_out), dtype=DEFAULT_DTYPE)
         b = jnp.zeros((fan_out,), dtype=DEFAULT_DTYPE)
         layers.append((W, b))
-    return PDN2DParams(layers=layers)
+    return PDN2DParams(layers, level_feature, mesh_schedule)
 
 
 # --------------------------------------------------------------------------
@@ -105,12 +111,17 @@ def _input_features(sigma: Array, xi: Array, axis_id: float) -> Array:
     return jnp.concatenate([sigma_b, xi[:, None], aid[:, None]], axis=-1)
 
 
+def corner_feature(xi, n, right):
+    distance = (xi if right else 1 - xi) / 2
+    return jnp.log(distance + 1 / n)
+
+
 def forward(
-    params: PDN2DParams, sigma: Array, xi: Array, axis_id: float
+    params: PDN2DParams, sigma: Array, xi: Array, axis_id: float, extra=None
 ) -> Array:
     """Evaluate rho_phi(sigma, xi, axis_id) -> shape (n_xi,)."""
     x = _input_features(sigma, xi, axis_id)
-    h = x
+    h = x if extra is None else jnp.column_stack((x, extra))
     for (W, b) in params.layers[:-1]:
         h = jnp.tanh(h @ W + b)
     W_out, b_out = params.layers[-1]
@@ -138,6 +149,10 @@ def softmax_jax(theta: Array) -> Array:
     m = jnp.max(theta)
     e = jnp.exp(theta - m)
     return e / jnp.sum(e)
+
+
+def bounded_logits(z, T):
+    return T * jnp.tanh((z - jnp.mean(z)) / T)
 
 
 def policy_step(
@@ -169,11 +184,10 @@ def policy_step(
             budget``.
     """
     n = z.shape[-1]
-    z_centered = z - jnp.mean(z)
     T_t = jnp.asarray(float(T), dtype=z.dtype)
     h_min_t = jnp.asarray(float(h_min), dtype=z.dtype)
     budget_t = jnp.asarray(float(budget), dtype=z.dtype)
-    q = T_t * jnp.tanh(z_centered / T_t)
+    q = bounded_logits(z, T_t)
     scale = budget_t - jnp.asarray(n, dtype=z.dtype) * h_min_t
     return h_min_t + scale * softmax_jax(q)
 
@@ -228,6 +242,34 @@ def knots_p2_from_network_axis(
     return jnp.concatenate([zeros, interior, ones])
 
 
+def lshape_policy(params, n_elem, p, T=None, h_min=None):
+    from src.config import (T_LSHAPE, H_MIN_LSHAPE,
+                            T_LSHAPE_BY_P, H_MIN_LSHAPE_BY_P)
+    # Per-degree override (p=3 calibration) falls back to the scalar default, so
+    # empty maps == byte-identical to T_LSHAPE / H_MIN_LSHAPE. An explicit T /
+    # h_min kwarg (tests, --T/--h-min flag) still wins over both.
+    if params.mesh_schedule:
+        from src.nonparametric.lshape.schedule import policy_at
+        scheduled_T, scheduled_floor = policy_at(params.mesh_schedule, int(n_elem))
+        T = scheduled_T if T is None else T
+        h_min = scheduled_floor if h_min is None else h_min
+    if T is None:
+        T = float(T_LSHAPE_BY_P.get(int(p), T_LSHAPE))
+    if h_min is None:
+        h_min = float(H_MIN_LSHAPE_BY_P.get(int(p), H_MIN_LSHAPE))
+    return T, h_min
+
+
+def lshape_logits(params, sigma, n_elem, axis_id):
+    half = int(n_elem) // 2
+    if 2 * half != int(n_elem):
+        raise ValueError(f"LSHAPE needs even n_elem; got {n_elem}")
+    xi = cell_midpoints(half)
+    z_left = forward(params, sigma, xi, axis_id, corner_feature(xi, n_elem, False) if params.level_feature else None)
+    z_right = forward(params, sigma, xi, axis_id + 0.5, corner_feature(xi, n_elem, True) if params.level_feature else None)
+    return z_left, z_right
+
+
 def knots_p3_from_network_axis(
     params: PDN2DParams, sigma: Array, n_elem: int, p: int, axis_id: float,
     *,
@@ -249,21 +291,8 @@ def knots_p3_from_network_axis(
     Applies the unified mesh policy (decisions 7-C, 7-D): gauge centering
     + ``T·tanh(z/T)`` + softmax with ``h_min`` floor PER HALF.
     """
-    from src.config import (T_LSHAPE, H_MIN_LSHAPE,
-                            T_LSHAPE_BY_P, H_MIN_LSHAPE_BY_P)
-    # Per-degree override (p=3 calibration) falls back to the scalar default, so
-    # empty maps == byte-identical to T_LSHAPE / H_MIN_LSHAPE. An explicit T /
-    # h_min kwarg (tests, --T/--h-min flag) still wins over both.
-    if T is None:
-        T = float(T_LSHAPE_BY_P.get(int(p), T_LSHAPE))
-    if h_min is None:
-        h_min = float(H_MIN_LSHAPE_BY_P.get(int(p), H_MIN_LSHAPE))
-    half = int(n_elem) // 2
-    if 2 * half != int(n_elem):
-        raise ValueError(f"LSHAPE needs even n_elem; got {n_elem}")
-    xi = cell_midpoints(half)
-    z_left = forward(params, sigma, xi, axis_id=axis_id)
-    z_right = forward(params, sigma, xi, axis_id=axis_id + 0.5)
+    T, h_min = lshape_policy(params, n_elem, p, T, h_min)
+    z_left, z_right = lshape_logits(params, sigma, n_elem, axis_id)
     sizes_l = policy_step(z_left, T=T, h_min=h_min, budget=0.5)
     sizes_r = policy_step(z_right, T=T, h_min=h_min, budget=0.5)
     interior_l = jnp.cumsum(sizes_l)[:-1]
@@ -282,6 +311,9 @@ def knots_p3_from_network_axis(
 
 def params_to_flat_dict(params: PDN2DParams) -> dict:
     out: dict = {}
+    if params.level_feature or params.mesh_schedule:
+        out["level_feature"] = params.level_feature
+        out["mesh_schedule"] = np.asarray(params.mesh_schedule, dtype=np.float64).reshape(-1, 3)
     for i, (W, b) in enumerate(params.layers):
         out[f"W{i}"] = jax.device_get(W)
         out[f"b{i}"] = jax.device_get(b)
@@ -296,7 +328,9 @@ def params_from_flat_dict(d) -> PDN2DParams:
         b = jnp.asarray(d[f"b{i}"], dtype=DEFAULT_DTYPE)
         layers.append((W, b))
         i += 1
-    return PDN2DParams(layers=layers)
+    feature = bool(d["level_feature"]) if "level_feature" in d else False
+    schedule = tuple((int(n), float(t), float(h)) for n, t, h in d["mesh_schedule"]) if "mesh_schedule" in d else ()
+    return PDN2DParams(layers, feature, schedule)
 
 
 __all__ = [

@@ -1,0 +1,128 @@
+\documentclass[11pt,tikz,border=2pt]{standalone}
+\usepackage{pgfplots}
+\usepackage{amsmath}
+\usepackage{pgfplotstable}
+\pgfplotsset{compat=1.18}
+\usepgfplotslibrary{fillbetween}
+\usetikzlibrary{arrows.meta}
+
+\pgfplotsset{
+  discard if not/.style 2 args={x filter/.append code={
+    \edef\tempa{\thisrow{#1}}
+    \edef\tempb{#2}
+    \ifx\tempa\tempb
+    \else
+      \def\pgfmathresult{NaN}
+    \fi}},
+  filter discard warning=false,
+  unbounded coords=discard
+}
+
+\pgfplotsset{
+  table/col sep=comma,
+  every axis/.append style={
+    tick label style={font=\footnotesize},
+    label style={font=\footnotesize},
+    legend style={
+      font=\tiny,
+      draw=none,
+      fill=white,
+      fill opacity=0.8,
+      text opacity=1,
+      cells={anchor=west},
+      inner sep=2pt,
+      row sep=-1pt,
+      nodes={scale=0.9,transform shape}
+    },
+    line width=0.9pt,
+    grid=none
+  },
+  /series/.is family,
+  /series/uniform_err/.style={blue,mark=square,solid,line width=1.1pt,mark size=2.2pt},
+  /series/positional_err/.style={orange!90!black,mark=o,solid,line width=1.1pt,mark size=2.6pt},
+  /band/.is family,
+  /band/uniform/.style={draw=none,fill=blue,fill opacity=0.14},
+  /band/positional/.style={draw=none,fill=orange!90!black,fill opacity=0.14}
+}
+
+\begin{filecontents*}[overwrite]{P4E_p3.csv}
+p,N,method,err_med,err_p25,err_p75
+3,4,positional,6.9840803194e-02,4.1489585373e-02,1.0673684432e-01
+3,8,positional,2.3547728590e-02,1.3874720523e-02,3.9502927060e-02
+3,16,positional,4.2305880945e-03,2.5085580090e-03,8.2644508837e-03
+3,32,positional,5.2688245910e-04,2.9861375631e-04,1.1441396406e-03
+3,64,positional,1.5268585195e-04,6.3312092451e-05,4.3084108737e-04
+3,4,uniform,4.8694679746e-02,3.2214631071e-02,8.5146687707e-02
+3,8,uniform,2.9141717178e-02,1.7096264475e-02,5.7250571893e-02
+3,16,uniform,1.7711660839e-02,9.5491612644e-03,3.7838505730e-02
+3,32,uniform,1.0858016263e-02,5.4486003337e-03,2.5449047659e-02
+3,64,uniform,6.6704654097e-03,3.1258591068e-03,1.7304982946e-02
+\end{filecontents*}
+
+\newcommand{\Sfile}{P4E_p3.csv}
+
+\begin{document}
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.65\textwidth,
+  height=0.5\textwidth,
+  title={},
+  xlabel={$N$},
+  ylabel={$\|u-u_{(\cdot)}\|_{\mathcal E}/\|u\|_{\mathcal E}$},
+  xmode=log,
+  log basis x=10,
+  xtick={4,8,16,32,64},
+  xticklabels={4,8,16,32,64},
+  xmin=3.6,
+  xmax=70.4,
+  ymin=5e-5,
+  ymax=1e0,
+  ymode=log,
+  log basis y=10,
+  legend pos=south west,
+  legend columns=1
+]
+
+\addplot[name path=uniform_lo,draw=none,forget plot,
+  discard if not={p}{3},discard if not={method}{uniform}]
+  table[x=N,y=err_p25]{\Sfile};
+
+\addplot[name path=uniform_hi,draw=none,forget plot,
+  discard if not={p}{3},discard if not={method}{uniform}]
+  table[x=N,y=err_p75]{\Sfile};
+
+\addplot[/band/uniform,forget plot]
+  fill between[of=uniform_lo and uniform_hi];
+
+\addplot[name path=positional_lo,draw=none,forget plot,
+  discard if not={p}{3},discard if not={method}{positional}]
+  table[x=N,y=err_p25]{\Sfile};
+
+\addplot[name path=positional_hi,draw=none,forget plot,
+  discard if not={p}{3},discard if not={method}{positional}]
+  table[x=N,y=err_p75]{\Sfile};
+
+\addplot[/band/positional,forget plot]
+  fill between[of=positional_lo and positional_hi];
+
+\addplot[/series/uniform_err,
+  discard if not={p}{3},discard if not={method}{uniform}]
+  table[x=N,y=err_med]{\Sfile};
+\addlegendentry{uniform $u_h$}
+
+\addplot[/series/positional_err,
+  discard if not={p}{3},discard if not={method}{positional}]
+  table[x=N,y=err_med]{\Sfile};
+\addlegendentry{adapted $u_\theta$}
+
+\addplot [gray,dashed,line width=1.0pt,domain=3.6:70.4,samples=2]
+  {1.732849e+01*x^(-3)};
+\addlegendentry{$\mathcal{O}(N^{-3})$}
+
+\addplot [gray,dotted,line width=1.0pt,domain=3.6:70.4,samples=2]
+  {1.067274e-01*x^(-2/3)};
+\addlegendentry{$\mathcal{O}(N^{-2/3})$}
+
+\end{axis}
+\end{tikzpicture}
+\end{document}

@@ -8,18 +8,50 @@ level, keeping peak RSS bounded.
 from __future__ import annotations
 
 import gc
-import resource
 import sys
 
 
 from src import config
 from src.parametric.continuation import train_with_continuation
-from src.parametric.evaluation import evaluate_test_split
+from src.parametric.evaluation_v2 import evaluate_test_split_v2
 from src.lhs_sampling import generate_splits
+
+
+def _peak_rss_mb_windows() -> float:
+    import ctypes
+    from ctypes import wintypes
+
+    class _Counters(ctypes.Structure):
+        _fields_ = [
+            ("cb", wintypes.DWORD),
+            ("PageFaultCount", wintypes.DWORD),
+            ("PeakWorkingSetSize", ctypes.c_size_t),
+            ("WorkingSetSize", ctypes.c_size_t),
+            ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+            ("QuotaPagedPoolUsage", ctypes.c_size_t),
+            ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+            ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+            ("PagefileUsage", ctypes.c_size_t),
+            ("PeakPagefileUsage", ctypes.c_size_t),
+        ]
+
+    kernel32 = ctypes.WinDLL("kernel32")
+    psapi = ctypes.WinDLL("psapi")
+    kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+    psapi.GetProcessMemoryInfo.argtypes = [wintypes.HANDLE, ctypes.POINTER(_Counters), wintypes.DWORD]
+    psapi.GetProcessMemoryInfo.restype = wintypes.BOOL
+    counters = _Counters()
+    counters.cb = ctypes.sizeof(_Counters)
+    if not psapi.GetProcessMemoryInfo(kernel32.GetCurrentProcess(), ctypes.byref(counters), counters.cb):
+        raise OSError(ctypes.get_last_error())
+    return counters.PeakWorkingSetSize / (1024 ** 2)
 
 
 def _peak_rss_mb() -> float:
     """Peak RSS in MB. Linux: ru_maxrss is KB; macOS: bytes."""
+    if sys.platform == "win32":
+        return _peak_rss_mb_windows()
+    import resource
     rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     if sys.platform == "darwin":  # macOS reports bytes regardless of magnitude
         return rss / (1024 ** 2)
@@ -45,7 +77,7 @@ def test_evaluate_test_split_memory_bounded(tmp_path):
 
     gc.collect()
 
-    rows = evaluate_test_split(
+    rows = evaluate_test_split_v2(
         cont.params_final,
         p=3,
         seed=0,

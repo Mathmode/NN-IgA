@@ -18,7 +18,7 @@ from jax import lax
 Array = jnp.ndarray
 
 
-def safe_div(num: Array, den: Array, *, eps: float = 1e-30) -> Array:
+def safe_div(num: Array, den: Array, *, eps: float | None = 1e-30) -> Array:
     """Gradient-safe division: returns ``num / den`` where ``|den| >= eps``,
     else 0.
 
@@ -34,8 +34,7 @@ def safe_div(num: Array, den: Array, *, eps: float = 1e-30) -> Array:
     """
     den = jnp.asarray(den)
     num = jnp.asarray(num, dtype=den.dtype)
-    eps_t = jnp.asarray(eps, dtype=den.dtype)
-    safe = jnp.abs(den) >= eps_t
+    safe = den != 0 if eps is None else jnp.abs(den) >= eps
     # Replace ``den`` with 1 on the unsafe branch BEFORE dividing, so the
     # forward pass never produces inf/NaN that would corrupt the
     # gradient through the unselected branch of ``jnp.where``.
@@ -191,18 +190,18 @@ def basis_p2_batch(u: Array, U_local: Array) -> tuple[Array, Array, Array]:
     denom0 = A * D0
     denom2 = A * D2
 
-    N0 = safe_div(t * t, denom0, eps=1e-14)
-    N2 = safe_div(s * s, denom2, eps=1e-14)
-    N1 = safe_div((u - Ua) * t, denom0, eps=1e-14) + safe_div((Uc - u) * s, denom2, eps=1e-14)
+    N0 = safe_div(t * t, denom0, eps=None)
+    N2 = safe_div(s * s, denom2, eps=None)
+    N1 = safe_div((u - Ua) * t, denom0, eps=None) + safe_div((Uc - u) * s, denom2, eps=None)
 
-    dN0 = safe_div(-2.0 * t, denom0, eps=1e-14)
-    dN2 = safe_div(2.0 * s, denom2, eps=1e-14)
-    dN1 = safe_div(Ua + Ub - 2.0 * u, denom0, eps=1e-14) + safe_div(Us + Uc - 2.0 * u, denom2, eps=1e-14)
+    dN0 = safe_div(-2.0 * t, denom0, eps=None)
+    dN2 = safe_div(2.0 * s, denom2, eps=None)
+    dN1 = safe_div(t - (u - Ua), denom0, eps=None) + safe_div((Uc - u) - s, denom2, eps=None)
 
     one = jnp.ones_like(u)
-    d2N0 = safe_div(2.0 * one, denom0, eps=1e-14)
-    d2N2 = safe_div(2.0 * one, denom2, eps=1e-14)
-    d2N1 = safe_div(-2.0 * one, denom0, eps=1e-14) + safe_div(-2.0 * one, denom2, eps=1e-14)
+    d2N0 = safe_div(2.0 * one, denom0, eps=None)
+    d2N2 = safe_div(2.0 * one, denom2, eps=None)
+    d2N1 = safe_div(-2.0 * one, denom0, eps=None) + safe_div(-2.0 * one, denom2, eps=None)
 
     N = jnp.stack([N0, N1, N2], axis=-1)
     dN = jnp.stack([dN0, dN1, dN2], axis=-1)
@@ -232,35 +231,35 @@ def basis_p3_batch(u: Array, U_local: Array) -> tuple[Array, Array, Array]:
     t3 = U_local[:, 6][:, None]
 
     den01 = t1 - t0
-    N1_m1 = safe_div(t1 - u, den01, eps=1e-14)
-    N1_0 = safe_div(u - t0, den01, eps=1e-14)
+    N1_m1 = safe_div(t1 - u, den01, eps=None)
+    N1_0 = safe_div(u - t0, den01, eps=None)
 
-    N2_m2 = safe_div(t1 - u, t1 - t_m1, eps=1e-14) * N1_m1
-    N2_m1 = safe_div(u - t_m1, t1 - t_m1, eps=1e-14) * N1_m1 + safe_div(t2 - u, t2 - t0, eps=1e-14) * N1_0
-    N2_0 = safe_div(u - t0, t2 - t0, eps=1e-14) * N1_0
+    N2_m2 = safe_div(t1 - u, t1 - t_m1, eps=None) * N1_m1
+    N2_m1 = safe_div(u - t_m1, t1 - t_m1, eps=None) * N1_m1 + safe_div(t2 - u, t2 - t0, eps=None) * N1_0
+    N2_0 = safe_div(u - t0, t2 - t0, eps=None) * N1_0
 
-    N3_m3 = safe_div(t1 - u, t1 - t_m2, eps=1e-14) * N2_m2
-    N3_m2 = safe_div(u - t_m2, t1 - t_m2, eps=1e-14) * N2_m2 + safe_div(t2 - u, t2 - t_m1, eps=1e-14) * N2_m1
-    N3_m1 = safe_div(u - t_m1, t2 - t_m1, eps=1e-14) * N2_m1 + safe_div(t3 - u, t3 - t0, eps=1e-14) * N2_0
-    N3_0 = safe_div(u - t0, t3 - t0, eps=1e-14) * N2_0
+    N3_m3 = safe_div(t1 - u, t1 - t_m2, eps=None) * N2_m2
+    N3_m2 = safe_div(u - t_m2, t1 - t_m2, eps=None) * N2_m2 + safe_div(t2 - u, t2 - t_m1, eps=None) * N2_m1
+    N3_m1 = safe_div(u - t_m1, t2 - t_m1, eps=None) * N2_m1 + safe_div(t3 - u, t3 - t0, eps=None) * N2_0
+    N3_0 = safe_div(u - t0, t3 - t0, eps=None) * N2_0
 
     N = jnp.stack([N3_m3, N3_m2, N3_m1, N3_0], axis=-1)
 
-    dN2_m2 = -2.0 * safe_div(N1_m1, t1 - t_m1, eps=1e-14)
-    dN2_m1 = 2.0 * safe_div(N1_m1, t1 - t_m1, eps=1e-14) - 2.0 * safe_div(N1_0, t2 - t0, eps=1e-14)
-    dN2_0 = 2.0 * safe_div(N1_0, t2 - t0, eps=1e-14)
+    dN2_m2 = -2.0 * safe_div(N1_m1, t1 - t_m1, eps=None)
+    dN2_m1 = 2.0 * safe_div(N1_m1, t1 - t_m1, eps=None) - 2.0 * safe_div(N1_0, t2 - t0, eps=None)
+    dN2_0 = 2.0 * safe_div(N1_0, t2 - t0, eps=None)
 
-    dN3_m3 = -3.0 * safe_div(N2_m2, t1 - t_m2, eps=1e-14)
-    dN3_m2 = 3.0 * safe_div(N2_m2, t1 - t_m2, eps=1e-14) - 3.0 * safe_div(N2_m1, t2 - t_m1, eps=1e-14)
-    dN3_m1 = 3.0 * safe_div(N2_m1, t2 - t_m1, eps=1e-14) - 3.0 * safe_div(N2_0, t3 - t0, eps=1e-14)
-    dN3_0 = 3.0 * safe_div(N2_0, t3 - t0, eps=1e-14)
+    dN3_m3 = -3.0 * safe_div(N2_m2, t1 - t_m2, eps=None)
+    dN3_m2 = 3.0 * safe_div(N2_m2, t1 - t_m2, eps=None) - 3.0 * safe_div(N2_m1, t2 - t_m1, eps=None)
+    dN3_m1 = 3.0 * safe_div(N2_m1, t2 - t_m1, eps=None) - 3.0 * safe_div(N2_0, t3 - t0, eps=None)
+    dN3_0 = 3.0 * safe_div(N2_0, t3 - t0, eps=None)
 
     dN = jnp.stack([dN3_m3, dN3_m2, dN3_m1, dN3_0], axis=-1)
 
-    d2N3_m3 = -3.0 * safe_div(dN2_m2, t1 - t_m2, eps=1e-14)
-    d2N3_m2 = 3.0 * safe_div(dN2_m2, t1 - t_m2, eps=1e-14) - 3.0 * safe_div(dN2_m1, t2 - t_m1, eps=1e-14)
-    d2N3_m1 = 3.0 * safe_div(dN2_m1, t2 - t_m1, eps=1e-14) - 3.0 * safe_div(dN2_0, t3 - t0, eps=1e-14)
-    d2N3_0 = 3.0 * safe_div(dN2_0, t3 - t0, eps=1e-14)
+    d2N3_m3 = -3.0 * safe_div(dN2_m2, t1 - t_m2, eps=None)
+    d2N3_m2 = 3.0 * safe_div(dN2_m2, t1 - t_m2, eps=None) - 3.0 * safe_div(dN2_m1, t2 - t_m1, eps=None)
+    d2N3_m1 = 3.0 * safe_div(dN2_m1, t2 - t_m1, eps=None) - 3.0 * safe_div(dN2_0, t3 - t0, eps=None)
+    d2N3_0 = 3.0 * safe_div(dN2_0, t3 - t0, eps=None)
 
     d2N = jnp.stack([d2N3_m3, d2N3_m2, d2N3_m1, d2N3_0], axis=-1)
     return N, dN, d2N

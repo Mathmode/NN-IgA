@@ -24,10 +24,8 @@ import pytest
 
 from src import config
 from src.parametric.continuation import train_with_continuation
-from src.parametric.evaluation import (
-    SUMMARY_FIELDNAMES as SUMMARY_FIELDNAMES_V1,
-)
 from src.parametric.evaluation_v2 import (
+    SUMMARY_FIELDNAMES_V1,
     SUMMARY_V2_FIELDNAMES,
     V2_NEW_FIELDS,
     calibrate_tau_global,

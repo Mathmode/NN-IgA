@@ -65,6 +65,8 @@ def main() -> None:
     PROBLEM = "helmholtz"
     if args.output_dir is not None:
         out = Path(args.output_dir).resolve()
+    elif args.no_hmax:
+        out = PROJECT / "data_results_v2" / f"{PROBLEM}_nohmax" / f"p{int(args.p)}"
     else:
         _base = PROJECT / "data_results" / PROBLEM / f"p{int(args.p)}"
         out = (_base / f"{PROBLEM}_theta0"
@@ -140,6 +142,9 @@ def main() -> None:
             "hidden_dims": list(HELMHOLTZ["hidden_dims"]), "g_min_target": float(HELMHOLTZ["g_min_target"]),
             "use_hmax": (not args.no_hmax), "final_loss": float(res.per_level[-1].final_loss),
             "elapsed_sec": float(time.perf_counter() - t0)}
+    from common.resources import hardware_info, peak_rss_mb
+    meta["peak_rss_mb"] = float(peak_rss_mb())
+    meta["hardware"] = hardware_info()
     if val_protocol:
         meta["split_seed"] = int(SPLIT_SEED)
         meta["n_val"] = int(val_cs.size)

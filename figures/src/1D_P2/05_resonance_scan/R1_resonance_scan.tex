@@ -1,0 +1,94 @@
+\documentclass[11pt,tikz,border=2pt]{standalone}
+\usepackage{pgfplots}
+\usepackage{amsmath}
+\usepackage{pgfplotstable}
+\pgfplotsset{compat=1.18}
+\usepgfplotslibrary{fillbetween,groupplots}
+\usetikzlibrary{arrows.meta}
+
+\pgfplotsset{
+  discard if not/.style 2 args={x filter/.append code={
+    \edef\tempa{\thisrow{#1}}
+    \edef\tempb{#2}
+    \ifx\tempa\tempb
+    \else
+      \def\pgfmathresult{NaN}
+    \fi}},
+  filter discard warning=false,
+  unbounded coords=discard
+}
+
+\pgfplotsset{
+  table/col sep=comma,
+  every axis/.append style={
+    tick label style={font=\footnotesize},
+    label style={font=\footnotesize},
+    legend style={
+      font=\tiny,
+      draw=none,
+      fill=white,
+      fill opacity=0.8,
+      text opacity=1,
+      cells={anchor=west},
+      inner sep=2pt,
+      row sep=-1pt,
+      nodes={scale=0.9,transform shape}
+    },
+    line width=0.9pt,
+    grid=none
+  },
+  /series/.is family,
+  /series/uniform_err/.style={blue,mark=square,solid,line width=1.1pt,mark size=2.2pt},
+  /series/positional_err/.style={orange!90!black,mark=o,solid,line width=1.1pt,mark size=2.6pt},
+  /series/uniform_scan/.style={blue,solid,line width=1.1pt},
+  /series/positional_scan/.style={orange!90!black,solid,line width=1.1pt},
+  /band/.is family,
+  /band/uniform/.style={draw=none,fill=blue,fill opacity=0.14},
+  /band/positional/.style={draw=none,fill=orange!90!black,fill opacity=0.14}
+}
+
+\begin{document}
+\begin{tikzpicture}
+\begin{groupplot}[
+  group style={group size=2 by 2,horizontal sep=1.6cm,vertical sep=1.4cm,xlabels at=edge bottom,ylabels at=edge left},
+  width=0.47\textwidth,height=0.34\textwidth,scale only axis,
+  xmin=4.5,xmax=5.5,ymode=log,log basis y=10,ymin=1e-4,ymax=1e3,
+  xlabel={contrast $c$},ylabel={$|u^\ast-u_{(\cdot)}|_{H^{1}}/|u^\ast|_{H^{1}}$},
+  title style={font=\footnotesize},legend pos=south west,clip=true]
+\nextgroupplot[title={$p=2$, $N=32$}]
+\addplot[/series/uniform_scan] table[x=c,y=uniform]{R1_scan_p2_N32.csv};
+\addlegendentry{$|u^\ast-u_h|_{H^1}$}
+\addplot[/series/positional_scan] table[x=c,y=positional]{R1_scan_p2_N32.csv};
+\addlegendentry{$|u^\ast-u_\theta|_{H^1}$}
+\draw[gray,dashed,line width=0.6pt] (axis cs:4.8,1e-4) -- (axis cs:4.8,1e3);
+\draw[gray,dashed,line width=0.6pt] (axis cs:5.2,1e-4) -- (axis cs:5.2,1e3);
+\draw[blue,dotted,line width=0.8pt] (axis cs:5.006973,1e-4) -- (axis cs:5.006973,1e3);
+\draw[blue,dotted,line width=0.8pt] (axis cs:5.495419,1e-4) -- (axis cs:5.495419,1e3);
+\draw[black!60,line width=0.4pt] (axis cs:5.0005,1e-4) -- (axis cs:5.0005,1e3);
+\nextgroupplot[title={$p=2$, $N=64$}]
+\addplot[/series/uniform_scan] table[x=c,y=uniform]{R1_scan_p2_N64.csv};
+\addplot[/series/positional_scan] table[x=c,y=positional]{R1_scan_p2_N64.csv};
+\draw[gray,dashed,line width=0.6pt] (axis cs:4.8,1e-4) -- (axis cs:4.8,1e3);
+\draw[gray,dashed,line width=0.6pt] (axis cs:5.2,1e-4) -- (axis cs:5.2,1e3);
+\draw[blue,dotted,line width=0.8pt] (axis cs:4.808414,1e-4) -- (axis cs:4.808414,1e3);
+\draw[blue,dotted,line width=0.8pt] (axis cs:5.213085,1e-4) -- (axis cs:5.213085,1e3);
+\draw[black!60,line width=0.4pt] (axis cs:5.0005,1e-4) -- (axis cs:5.0005,1e3);
+\nextgroupplot[title={$p=3$, $N=32$}]
+\addplot[/series/uniform_scan] table[x=c,y=uniform]{R1_scan_p3_N32.csv};
+\addplot[/series/positional_scan] table[x=c,y=positional]{R1_scan_p3_N32.csv};
+\draw[gray,dashed,line width=0.6pt] (axis cs:4.8,1e-4) -- (axis cs:4.8,1e3);
+\draw[gray,dashed,line width=0.6pt] (axis cs:5.2,1e-4) -- (axis cs:5.2,1e3);
+\draw[blue,dotted,line width=0.8pt] (axis cs:4.856902,1e-4) -- (axis cs:4.856902,1e3);
+\draw[blue,dotted,line width=0.8pt] (axis cs:5.302927,1e-4) -- (axis cs:5.302927,1e3);
+\draw[black!60,line width=0.4pt] (axis cs:5.0005,1e-4) -- (axis cs:5.0005,1e3);
+\nextgroupplot[title={$p=3$, $N=64$}]
+\addplot[/series/uniform_scan] table[x=c,y=uniform]{R1_scan_p3_N64.csv};
+\addplot[/series/positional_scan] table[x=c,y=positional]{R1_scan_p3_N64.csv};
+\draw[gray,dashed,line width=0.6pt] (axis cs:4.8,1e-4) -- (axis cs:4.8,1e3);
+\draw[gray,dashed,line width=0.6pt] (axis cs:5.2,1e-4) -- (axis cs:5.2,1e3);
+\draw[blue,dotted,line width=0.8pt] (axis cs:4.800378,1e-4) -- (axis cs:4.800378,1e3);
+\draw[blue,dotted,line width=0.8pt] (axis cs:5.200719,1e-4) -- (axis cs:5.200719,1e3);
+\draw[black!60,line width=0.4pt] (axis cs:5.0005,1e-4) -- (axis cs:5.0005,1e3);
+\end{groupplot}
+\end{tikzpicture}
+\end{document}

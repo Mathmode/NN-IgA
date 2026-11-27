@@ -1,0 +1,48 @@
+{
+  "experiment": "helmholtz_contrast",
+  "p": 2,
+  "seed": 3,
+  "smoke": false,
+  "protocol": "val",
+  "param": "contrast",
+  "mesh": "global",
+  "loss_denom": "uniform",
+  "levels": [
+    64,
+    96,
+    128
+  ],
+  "epochs_per_level": {
+    "64": 400,
+    "96": 400,
+    "128": 400
+  },
+  "warm_epochs": 60,
+  "n_train": 70,
+  "n_test": 15,
+  "hidden_dims": [
+    32,
+    32
+  ],
+  "g_min_target": 2.5,
+  "use_hmax": false,
+  "final_loss": 0.22968042580864578,
+  "elapsed_sec": 361.9663303999987,
+  "peak_rss_mb": 929.98828125,
+  "hardware": {
+    "platform": "Windows-11-10.0.26300-SP0",
+    "machine": "AMD64",
+    "processor": "AMD64 Family 25 Model 97 Stepping 2, AuthenticAMD",
+    "cpu_count": 12,
+    "slurm_cpus": null,
+    "host": "King",
+    "cpu_model": "AMD64 Family 25 Model 97 Stepping 2, AuthenticAMD"
+  },
+  "split_seed": 20240601,
+  "n_val": 15,
+  "best_val_eta2": {
+    "64": 0.22529655661957945,
+    "96": 0.21710993640380502,
+    "128": 0.21386692348684164
+  }
+}

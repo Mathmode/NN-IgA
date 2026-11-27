@@ -1,0 +1,6 @@
+{
+  "slurm_job": "8179732_7",
+  "reason": "Stopped at the author's request to retain zero-shot evaluation at N=64.",
+  "last_completed_level": 32,
+  "last_checkpoint_sha256": "987510befe88b5cb645c8116f2fbf1e1cd920deb3cb10fcbd0f15740acc973c6"
+}

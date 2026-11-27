@@ -10,7 +10,7 @@ each an 81x81 grid over the corner zoom [0.25,0.75]^2 (columns x,y,z, z=|grad u_
 plus ``P3_grad_knots_<method>_p<p>.dat`` -- the mesh (knot) lines clipped to the zoom
 with the removed quadrant cut out.
 
-The recipe is the documented one (memory: lshape-figure-data-generator): N=20, seed0,
+The recipe is the documented one (memory: lshape-figure-data-generator): N=16, seed0,
 ``checkpoint_final``; r-adapt knots via ``knots_p3_from_network_axis`` (the lshape builder
 parametrised by p -- the "p3" name is legacy), uniform via ``theta_to_knots_lshape``;
 solve ``galerkin_solve_lshape(..., n_eff=p3_effective_n_elem(N,p), q_K=p+1, q_F=4)``.
@@ -20,6 +20,7 @@ checkpoints are used -- i.e. it matches the current convergence/loss figures.
 Run from the repo root:
     python 2D/scripts/generate_lshape_gradient_zoom.py
 """
+import argparse
 import os, sys
 os.environ.setdefault("JAX_ENABLE_X64", "1")
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -78,14 +79,6 @@ def write_heat(path, g, Z):
                 f.write(f"{x:.6f},{y:.6f},{z:.6e},{np.log10(max(z, 1e-12)):.6e}\n")
 
 
-def unique_knots(kv, tol=1e-7):
-    out = []
-    for v in np.sort(np.asarray(kv)):
-        if not out or abs(v - out[-1]) > tol:
-            out.append(float(v))
-    return out
-
-
 def mesh_segments(xk, yk, lo=0.25, hi=0.75):
     """Knot grid lines with the L-shape cutout (removed quadrant x>0.5 & y<0.5),
     clipped to [lo,hi]. Vertical lines first, then horizontal."""
@@ -105,26 +98,31 @@ def mesh_segments(xk, yk, lo=0.25, hi=0.75):
 
 def write_mesh(path, segs):
     with open(path, "w") as f:
-        f.write("\n\n".join(f"{a[0]:.6f} {a[1]:.6f}\n{b[0]:.6f} {b[1]:.6f}" for a, b in segs) + "\n\n")
+        f.write("\n\n".join(f"{a[0]:.17g} {a[1]:.17g}\n{b[0]:.17g} {b[1]:.17g}" for a, b in segs) + "\n")
 
 
 def main():
-    os.makedirs(OUT, exist_ok=True)
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--checkpoint-root", default=os.path.join(_ROOT, "data_results/lshape"))
+    ap.add_argument("--output-dir", default=OUT)
+    args = ap.parse_args()
+    out = args.output_dir
+    os.makedirs(out, exist_ok=True)
     ck = {p: load_checkpoint(os.path.join(
-        _ROOT, f"data_results/lshape/p{p}/checkpoints/seed0/checkpoint_final.npz")) for p in (2, 3)}
+        args.checkpoint_root, f"p{p}/checkpoints/seed0/checkpoint_final.npz")) for p in (2, 3)}
     peaks = {}
     for method, p in (("uniform", 2), ("radapted", 2), ("radapted", 3)):
         kx, ky, C = solve(ck[p], SIGMA, p, "uniform" if method == "uniform" else "radapt")
         g, G = gradmag_on_grid(C, kx, ky, p)
-        write_heat(os.path.join(OUT, f"P3_grad_{method}_p{p}.csv"), g, G)
-        write_mesh(os.path.join(OUT, f"P3_grad_knots_{method}_p{p}.dat"),
-                   mesh_segments(unique_knots(kx), unique_knots(ky)))
+        write_heat(os.path.join(out, f"P3_grad_{method}_p{p}.csv"), g, G)
+        write_mesh(os.path.join(out, f"P3_grad_knots_{method}_p{p}.dat"),
+                   mesh_segments(np.unique(kx), np.unique(ky)))
         peaks[f"{method}_p{p}"] = float(G.max())
         print(f"  {method:9} p{p}: zoom |grad u_h| peak = {G.max():.4f}  "
-              f"(n_unique_knots x={len(unique_knots(kx))})")
+              f"(n_unique_knots x={len(np.unique(kx))})")
     vmax = max(peaks.values())
     print(f"\n  point meta max (vmax) = {vmax:.4f}")
-    print(f"  wrote 3 CSV + 3 knot .dat to {OUT}")
+    print(f"  wrote 3 CSV + 3 knot .dat to {out}")
 
 
 if __name__ == "__main__":

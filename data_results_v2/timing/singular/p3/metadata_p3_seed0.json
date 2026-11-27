@@ -1,0 +1,47 @@
+{
+  "p": 3,
+  "seed": 0,
+  "smoke": false,
+  "protocol": "val",
+  "split_seed": 20240601,
+  "uniform_init": false,
+  "evaluation": "v2",
+  "corrector_max_iter": 0,
+  "run_corrector": false,
+  "tau_global": null,
+  "git_hash": "unknown",
+  "platform": "Linux-4.18.0-553.146.1.el8_10.x86_64-x86_64-with-glibc2.28",
+  "python": "3.12.16 (main, Oct 26 2026, 11:37:43) [GCC 15.3.0]",
+  "device": "auto",
+  "elapsed_sec": 228.3562358940253,
+  "training_elapsed_sec": 226.98886673909146,
+  "levels_done": [
+    2,
+    4,
+    8,
+    16,
+    32,
+    64
+  ],
+  "eval_levels": [],
+  "continuation_levels": [
+    2,
+    4,
+    8,
+    16,
+    32,
+    64
+  ],
+  "loss": "eta",
+  "input_encoding": "log",
+  "peak_rss_mb": 1491.70703125,
+  "hardware": {
+    "platform": "Linux-4.18.0-553.146.1.el8_10.x86_64-x86_64-with-glibc2.28",
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "cpu_count": 64,
+    "slurm_cpus": "4",
+    "host": "hyperion-266",
+    "cpu_model": "Intel(R) Xeon(R) Platinum 8362 CPU @ 2.80GHz"
+  }
+}

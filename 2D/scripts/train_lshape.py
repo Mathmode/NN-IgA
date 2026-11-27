@@ -49,6 +49,10 @@ def main():
     ap.add_argument("--n-test", type=int, default=None)
     ap.add_argument("--n-epochs", type=int, default=None)
     ap.add_argument("--batch-size", type=int, default=None)
+    ap.add_argument("--lr-init", type=float, default=None, help="Override the initial learning rate.")
+    ap.add_argument("--lr-end", type=float, default=None, help="Override the final learning rate.")
+    ap.add_argument("--loss", choices=["eta", "ritz"], default="eta",
+                    help="Training loss: eq-26 estimator (paper) or Ritz energy J/|J_unif| (ablation).")
     ap.add_argument("--protocol", choices=["fixed", "std", "val"], default="fixed",
                     help="'val' (paper): fixed 70/15/15 split shared across seeds, "
                          "validation early stopping, best-val checkpoint. 'std': early "
@@ -62,12 +66,6 @@ def main():
                     help="[--protocol std] patience in epochs (default TRAIN_STD['patience']).")
     ap.add_argument("--es-tol", type=float, default=None,
                     help="[--protocol std] relative-improvement tol (default TRAIN_STD['tol']).")
-    ap.add_argument(
-        "--reference-cache",
-        type=str,
-        default=None,
-        help="Unused (kept for CLI back-compat); training computes denoms on the fly.",
-    )
     ap.add_argument(
         "--resume",
         action="store_true",
@@ -92,6 +90,8 @@ def main():
                     help="Grading cap T override for this degree (default: config, 5.0).")
     ap.add_argument("--h-min", type=float, default=None, dest="h_min",
                     help="Minimum cell size override (default: config, 1e-7).")
+    ap.add_argument("--level-feature", action="store_true")
+    ap.add_argument("--mesh-schedule", type=Path)
     args = ap.parse_args()
 
     PROBLEM = "lshape"
@@ -109,8 +109,16 @@ def main():
         _eff_h = _cfg.H_MIN_LSHAPE_BY_P.get(p_fe, _cfg.H_MIN_LSHAPE)
         print(f"[train_lshape] mesh-policy override for p={p_fe}: "
               f"T={_eff_T} h_min={_eff_h} (default T=5.0 h_min=1e-7)")
+    from src.nonparametric.lshape.schedule import read_schedule, policy_at
+    mesh_schedule = read_schedule(args.mesh_schedule, p_fe) if args.mesh_schedule else ()
+    if mesh_schedule and (args.T is not None or args.h_min is not None):
+        ap.error("--mesh-schedule conflicts with scalar overrides")
+    if (mesh_schedule or args.level_feature) and not args.output_dir:
+        ap.error("supply --output-dir for an experimental policy")
     if args.output_dir:
         out_dir = Path(args.output_dir)
+    elif args.loss == "ritz":
+        out_dir = _PROJECT_ROOT / "data_results_v2" / f"{PROBLEM}_ritz" / f"p{p_fe}"
     else:
         base = _PROJECT_ROOT / "data_results" / PROBLEM / f"p{p_fe}"
         out_dir = base / f"{PROBLEM}_theta0" if args.init_mode == "uniform" else base
@@ -140,7 +148,8 @@ def main():
         n_test = int(args.n_test or 4)
         rng = np.random.default_rng(args.seed)
         train_sigmas = train_sigmas[rng.choice(train_sigmas.shape[0], n_train, replace=False)]
-        test_sigmas = test_sigmas[rng.choice(test_sigmas.shape[0], n_test, replace=False)]
+        if not val_protocol:
+            test_sigmas = test_sigmas[rng.choice(test_sigmas.shape[0], n_test, replace=False)]
         if val_protocol:
             n_val = min(int(args.n_test or 4), val_sigmas.shape[0])
             val_sigmas = val_sigmas[rng.choice(val_sigmas.shape[0], n_val, replace=False)]
@@ -163,6 +172,9 @@ def main():
         batch_size = args.batch_size or int(TRAIN["batch_size"])
 
     p_fe = int(args.p) if args.p is not None else int(LSHAPE.get("p", 2))
+    for level in levels:
+        if mesh_schedule:
+            policy_at(mesh_schedule, level)
     ref_N = int(min(levels))
     q_est = int(LSHAPE.get("quad_estimator", 2))
 
@@ -191,6 +203,10 @@ def main():
         es_kw = {}
 
     print(f"  p = {p_fe}")
+    if args.lr_init is not None:
+        lr_init_use = float(args.lr_init)
+    if args.lr_end is not None:
+        lr_end_use = float(args.lr_end)
     if args.epochs_per_level is not None:
         epochs = {N: int(args.epochs_per_level) for N in levels}
     print(f"  levels = {levels}")
@@ -232,8 +248,22 @@ def main():
                       f"({'cache=' + str(args.h1_ref_cache) if h1_factory else 'NO CACHE -> NaN'})")
         print(f"  [h1-monitor] {hist_note.split('; ', 1)[1]}")
 
+    if args.loss == "ritz":
+        from src.parametric.ritz_loss_2d import make_ritz_denoms_fn, make_val_forward_ritz
+        denoms_fn = make_ritz_denoms_fn(train_sigmas, val_sigmas if val_protocol else None,
+                                        experiment="lshape", p=p_fe, q_K=p_fe + 1, q_F=int(LSHAPE["quad_forcing"]))
+        train_denoms, val_denoms = denoms_fn(int(levels[0]))
+        if val_protocol:
+            val_forward_factory = lambda NN: make_val_forward_ritz(
+                experiment="lshape", p=p_fe, n_elem=int(NN), q_K=p_fe + 1, q_F=int(LSHAPE["quad_forcing"]),
+                epsilon=float(EPSILON_DENOM))
+        if es_kw:
+            es_kw["es_tol"] = 0.0
+        hist_note = hist_note.replace("loss=eq26", "loss=ritz J/|J_unif| (es_tol=0)")
+        print(f"  [loss=ritz] |J_unif| denominators at N={levels[0]}: median={float(np.median(train_denoms)):.4e}")
     res = train_with_continuation(
         experiment="lshape",
+        level_feature=args.level_feature, mesh_schedule=mesh_schedule,
         p=p_fe,
         seed=int(args.seed),
         train_sigmas=train_sigmas,
@@ -260,6 +290,7 @@ def main():
         h1_metric_factory=h1_metric_factory,
         clip_norm=float(CLIP_NORM),
         warmup_epochs=int(WARMUP_EPOCHS),
+        loss=str(args.loss),
         **es_kw,
     )
 
@@ -269,6 +300,8 @@ def main():
     meta = {
         "seed": int(args.seed),
         "smoke": bool(args.smoke),
+        "level_feature": args.level_feature,
+        "mesh_schedule": list(mesh_schedule),
         "protocol": str(args.protocol),
         "levels": list(levels),
         "epochs_per_level": {str(k): int(v) for k, v in epochs.items()},
@@ -291,6 +324,12 @@ def main():
                                  for i in range(len(res.per_level))}
         meta["best_val_epoch"] = {str(res.levels_done[i]): int(res.per_level[i].best_epoch)
                                   for i in range(len(res.per_level))}
+    meta["epoch_seconds"] = {str(n): list(np.diff([0.] + [float(h["time_sec"]) for h in lvl.epoch_history]))
+                             for n, lvl in zip(res.levels_done, res.per_level)}
+    from common.resources import hardware_info, peak_rss_mb
+    meta["peak_rss_mb"] = float(peak_rss_mb())
+    meta["hardware"] = hardware_info()
+    meta["loss"] = str(args.loss)
     with open(out_dir / f"meta_train_lshape_seed{args.seed}.json", "w") as f:
         json.dump(meta, f, indent=2)
 

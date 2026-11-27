@@ -57,6 +57,16 @@ def _write_csv(path: Path, rows: list[dict], fieldnames: list[str]) -> None:
             w.writerow({k: row.get(k, "") for k in fieldnames})
 
 
+def _peak_rss_mb() -> float:
+    from common.resources import peak_rss_mb
+    return float(peak_rss_mb())
+
+
+def _hardware() -> dict:
+    from common.resources import hardware_info
+    return hardware_info()
+
+
 HISTORY_FIELDS = [
     "p", "seed", "level_N", "epoch",
     "train_loss", "val_loss", "h1_rel_val_median", "lr", "time_sec",
@@ -135,8 +145,17 @@ def main() -> None:
              "(no continuation).",
     )
     parser.add_argument(
-        "--evaluation", choices=("v1", "v2"), default="v2",
-        help="Evaluation CSV schema; 'v2' (default) is the enriched one.",
+        "--loss", choices=["eta", "ritz"], default="eta",
+        help="Training loss: 'eta' (eq. 26, paper) or 'ritz' (J/|J_unif|, ablation).",
+    )
+    parser.add_argument(
+        "--no-log-feature", action="store_true",
+        help="Ablation: drop the log(xi + 1/N) input feature (network input (beta, xi)).",
+    )
+    parser.add_argument(
+        "--eval-levels", type=int, nargs="*", default=None,
+        help="Override the test-split evaluation levels; pass no value to skip "
+             "the test-split and viz evaluation.",
     )
     parser.add_argument(
         "--corrector-max-iter", type=int, default=0,
@@ -157,12 +176,8 @@ def main() -> None:
         save_checkpoint,
         train_with_continuation,
     )
-    from src.parametric.evaluation import (
-        evaluate_test_split,
-        evaluate_viz_set,
-    )
+    from src.parametric.evaluation import evaluate_viz_set
     from src.parametric.evaluation_v2 import (
-        SUMMARY_V2_FIELDNAMES,
         calibrate_tau_global,
         evaluate_test_split_v2,
     )
@@ -176,10 +191,21 @@ def main() -> None:
     else:
         continuation_levels = CONTINUATION_LEVELS
         eval_levels = EVAL_LEVELS
+    if args.eval_levels is not None:
+        eval_levels = tuple(int(n) for n in args.eval_levels)
+    if args.no_log_feature:
+        from src import config as cfg
+        cfg.ARCH["input_dim"] = 2  # type: ignore[index]
+        cfg.ARCH["input_encoding"] = "no_log"  # type: ignore[index]
 
     PROBLEM = "singular"
+    variant = "_".join(v for v in (
+        "ritz" if args.loss == "ritz" else "",
+        "nolog" if args.no_log_feature else "") if v)
     if args.output_dir is not None:
         out_root = Path(args.output_dir).resolve()
+    elif variant:
+        out_root = PROJECT / "data_results_v2" / f"{PROBLEM}_{variant}" / f"p{int(args.p)}"
     else:
         base = PROJECT / "data_results" / PROBLEM / f"p{int(args.p)}"
         out_root = (base / f"{PROBLEM}_theta0"
@@ -220,6 +246,7 @@ def main() -> None:
         init_mode=str(args.init_mode),
         epochs_per_level=args.epochs_per_level,
         protocol=str(args.protocol),
+        loss=str(args.loss),
     )
     print(
         f"[t={time.perf_counter() - t0:.1f}s] Training elapsed: {cont.elapsed_sec:.1f}s"
@@ -252,7 +279,7 @@ def main() -> None:
 
     # 4a. Residual-gate threshold tau (feeds the corrector only).
     tau_global = None
-    if args.evaluation == "v2" and run_corrector:
+    if run_corrector:
         calib_N = int(continuation_levels[-1])
         print(
             f"[t={time.perf_counter() - t0:.1f}s] calibrate_tau_global N={calib_N} "
@@ -273,36 +300,23 @@ def main() -> None:
     # 4b. Test-split evaluation (incremental CSV write).
     summary_path = out_root / f"summary_p{args.p}_seed{args.seed}.csv"
     print(
-        f"[t={time.perf_counter() - t0:.1f}s] evaluate_test_split ({args.evaluation}) start "
+        f"[t={time.perf_counter() - t0:.1f}s] evaluate_test_split_v2 start "
         f"(incremental writes to {summary_path.name})",
         flush=True,
     )
-    if args.evaluation == "v2":
-        summary_rows = evaluate_test_split_v2(
-            cont.params_final,
-            p=int(args.p),
-            seed=int(args.seed),
-            test_betas=test_betas,
-            eval_levels=eval_levels,
-            tau_global=tau_global,
-            incremental_csv_path=summary_path,
-            clear_caches_between_levels=True,
-            verbose=True,
-            run_corrector=run_corrector,
-            corrector_budget=corrector_budget,
-        )
-    else:
-        summary_rows = evaluate_test_split(
-            cont.params_final,
-            p=int(args.p),
-            seed=int(args.seed),
-            test_betas=test_betas,
-            eval_levels=eval_levels,
-            incremental_csv_path=summary_path,
-            clear_caches_between_levels=True,
-            verbose=True,
-            run_corrector=run_corrector,
-        )
+    summary_rows = [] if not eval_levels else evaluate_test_split_v2(
+        cont.params_final,
+        p=int(args.p),
+        seed=int(args.seed),
+        test_betas=test_betas,
+        eval_levels=eval_levels,
+        tau_global=tau_global,
+        incremental_csv_path=summary_path,
+        clear_caches_between_levels=True,
+        verbose=True,
+        run_corrector=run_corrector,
+        corrector_budget=corrector_budget,
+    )
     print(
         f"[t={time.perf_counter() - t0:.1f}s] wrote {summary_path}"
         f"  ({len(summary_rows)} rows)",
@@ -310,7 +324,7 @@ def main() -> None:
     )
 
     # 5. Viz set (viz seed only).
-    if int(args.seed) == int(VIZ["viz_seed"]):  # type: ignore[index]
+    if eval_levels and int(args.seed) == int(VIZ["viz_seed"]):  # type: ignore[index]
         print(
             f"[t={time.perf_counter() - t0:.1f}s] evaluate_viz_set start",
             flush=True,
@@ -363,7 +377,7 @@ def main() -> None:
         "protocol": str(args.protocol),
         "split_seed": (int(SPLIT_SEED) if args.protocol == "val" else int(args.seed)),
         "uniform_init": bool(args.uniform_init),
-        "evaluation": str(args.evaluation),
+        "evaluation": "v2",
         "corrector_max_iter": int(args.corrector_max_iter),
         "run_corrector": bool(run_corrector),
         "tau_global": (None if tau_global is None else float(tau_global)),
@@ -376,6 +390,10 @@ def main() -> None:
         "levels_done": list(cont.levels_done),
         "eval_levels": list(eval_levels),
         "continuation_levels": list(continuation_levels),
+        "loss": str(args.loss),
+        "input_encoding": ("no_log" if args.no_log_feature else "log"),
+        "peak_rss_mb": _peak_rss_mb(),
+        "hardware": _hardware(),
     }
     (out_root / f"metadata_p{args.p}_seed{args.seed}.json").write_text(
         json.dumps(meta, indent=2)

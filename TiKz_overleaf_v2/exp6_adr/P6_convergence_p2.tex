@@ -1,0 +1,55 @@
+\documentclass[11pt,tikz,border=2pt]{standalone}
+\usepackage{pgfplots}
+\usepackage{amsmath}
+\pgfplotsset{compat=1.18}
+\usepgfplotslibrary{fillbetween}
+\pgfplotsset{
+  discard if not/.style 2 args={x filter/.append code={
+    \edef\tempa{\thisrow{#1}}\edef\tempb{#2}\ifx\tempa\tempb\else\def\pgfmathresult{NaN}\fi}},
+  filter discard warning=false, unbounded coords=discard,
+  table/col sep=comma,
+  every axis/.append style={tick label style={font=\footnotesize}, label style={font=\footnotesize},
+    legend style={font=\tiny,draw=none,fill=white,fill opacity=0.8,text opacity=1,cells={anchor=west},
+      inner sep=2pt,row sep=-1pt,nodes={scale=0.9,transform shape}}, line width=0.9pt, grid=none},
+  /series/.is family,
+  /series/uniform/.style={blue,mark=square,solid,line width=1.1pt,mark size=2.2pt},
+  /series/adapted/.style={orange!90!black,mark=o,solid,line width=1.1pt,mark size=2.6pt},
+  /band/.is family,
+  /band/uniform/.style={draw=none,fill=blue,fill opacity=0.14},
+  /band/adapted/.style={draw=none,fill=orange!90!black,fill opacity=0.14}
+}
+\begin{filecontents*}[overwrite]{P6_p2.csv}
+N,method,err_med,err_p25,err_p75
+8,adapted,9.2433363729e-03,7.8400298200e-03,1.0538458280e-02
+8,uniform,3.6720709934e-01,1.8585200131e-01,6.6703370724e-01
+16,adapted,2.2572076218e-03,1.8933873980e-03,2.5719919423e-03
+16,uniform,1.3851783445e-01,5.4244645257e-02,4.0699426275e-01
+32,adapted,5.5604435487e-04,4.6848450713e-04,6.3561235451e-04
+32,uniform,3.8475357982e-02,1.3743474172e-02,1.5663813659e-01
+64,adapted,1.3860303670e-04,1.1671942303e-04,1.5850062464e-04
+64,uniform,9.6537918784e-03,3.4124665051e-03,4.3913600090e-02
+128,adapted,3.4626510103e-05,2.9156375819e-05,3.9597253201e-05
+128,uniform,2.3980257151e-03,8.5000332667e-04,1.1035464416e-02
+\end{filecontents*}
+\begin{document}
+\begin{tikzpicture}
+\begin{axis}[width=0.65\textwidth,height=0.5\textwidth,xlabel={$N$},
+  ylabel={$\|u^\ast-u_{(\cdot)}\|_{\mathcal E}/\|u^\ast\|_{\mathcal E}$},
+  xmode=log,log basis x=2,xtick={8,16,32,64,128},xticklabels={8,16,32,64,128},
+  xmin=7,xmax=146,ymode=log,ymin=1e-06,ymax=1,legend pos=south west]
+\addplot[name path=uniform_lo,draw=none,forget plot,discard if not={method}{uniform}] table[x=N,y=err_p25]{P6_p2.csv};
+\addplot[name path=uniform_hi,draw=none,forget plot,discard if not={method}{uniform}] table[x=N,y=err_p75]{P6_p2.csv};
+\addplot[/band/uniform,forget plot] fill between[of=uniform_lo and uniform_hi];
+\addplot[name path=adapted_lo,draw=none,forget plot,discard if not={method}{adapted}] table[x=N,y=err_p25]{P6_p2.csv};
+\addplot[name path=adapted_hi,draw=none,forget plot,discard if not={method}{adapted}] table[x=N,y=err_p75]{P6_p2.csv};
+\addplot[/band/adapted,forget plot] fill between[of=adapted_lo and adapted_hi];
+
+\addplot[/series/uniform,discard if not={method}{uniform}] table[x=N,y=err_med]{P6_p2.csv};
+\addlegendentry{uniform $u_h$}
+\addplot[/series/adapted,discard if not={method}{adapted}] table[x=N,y=err_med]{P6_p2.csv};
+\addlegendentry{adapted $u_\theta$}
+\addplot[gray,dashed,line width=1.0pt,domain=7:146,samples=2]{5.693894e-01*x^(-2)};
+\addlegendentry{$\mathcal{O}(N^{-2})$}
+\end{axis}
+\end{tikzpicture}
+\end{document}

@@ -5,11 +5,15 @@ distributions. The physical state is computed by a Galerkin solve; the network
 is trained through the discrete solver using a residual-estimator objective.
 The implementation uses JAX and enables double precision in `common/_precision.py`.
 
-The five implemented problems are singular power solutions and transmission
-Helmholtz in one dimension, and arctangent layers, an immersed L-shape, and
-advection–diffusion in two dimensions. The experiment drivers support degrees
-2 and 3. Numerical kernels, quadrature choices, boundary conditions, normalization,
-and reference configurations are retained from the research source.
+The six benchmarks span singular-power, transmission Helmholtz and
+advection–diffusion–reaction problems in one dimension, and arctangent layers,
+a conforming L-shaped transmission problem and an outflow layer in two
+dimensions. The revised L-shape experiment compares estimator and Ritz losses
+against per-instance optimization with degrees 2 and 3. Both networks train
+through 32 elements per axis and use frozen weights at 64. The
+[held-out results](data_results_v3/lshape/tables/) and
+[independent reference energies](references_v3/lshape_energy_ngsolve.csv)
+are included.
 
 ## Installation and quick example
 
@@ -40,6 +44,7 @@ same import name and must be used in separate processes.
 - `data_results/`: selected research outputs, small checkpoints and evaluation
   samples used by the retained post-processing workflows.
 - `references/`: L-shape reference cache and its provenance/checksum.
+- [figures/](figures/): final vector figures with the matching editable TikZ sources and plot data in [figures/src/](figures/src/).
 - `TiKz_overleaf/`: figure/table sources and associated numeric resources.
 
 ## Experiments and reproducibility
@@ -47,8 +52,8 @@ same import name and must be used in separate processes.
 See [EXPERIMENTS.md](EXPERIMENTS.md) for entry points and
 [REPRODUCIBILITY.md](REPRODUCIBILITY.md) for reproduction scope and limitations.
 [PROVENANCE.md](PROVENANCE.md) records historical run settings, including
-settings that differ from current configuration defaults. Existing CSVs and
-checkpoints are inherited research artifacts, not newly reproduced results.
+settings that differ from current configuration defaults. The original outputs remain in `data_results/`. Revision results are in
+`data_results_v2/` and `data_results_v3/`.
 
 ```bash
 python 1D/scripts/train_singular.py --protocol val --p 2 --seed 0
@@ -73,7 +78,7 @@ python -m pytest scripts/test_data_guards.py
 Run dimensional suites separately to avoid the shared `src` name. Tests marked
 `slow` are excluded by default; enable them explicitly with `-m slow`.
 Optional NGSolve checks require a separate installation and are not necessary
-for the included immersed IGA reference cache.
+to use the included reference energies.
 
 ## License
 

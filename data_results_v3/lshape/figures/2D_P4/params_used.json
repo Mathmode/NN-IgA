@@ -1,0 +1,22 @@
+{
+  "N": 16,
+  "seed": 0,
+  "sigma_pairs": {
+    "param1": [
+      0.89,
+      0.89
+    ],
+    "param2": [
+      0.1,
+      10.0
+    ],
+    "param3": [
+      10.0,
+      0.1
+    ]
+  },
+  "methods": [
+    "uniform",
+    "radapted"
+  ]
+}

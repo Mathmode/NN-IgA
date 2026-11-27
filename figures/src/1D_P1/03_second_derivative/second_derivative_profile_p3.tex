@@ -1,0 +1,59 @@
+\documentclass[border=10pt]{standalone}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+
+% keep only rows whose column #1 equals #2
+\pgfplotsset{
+discard if not/.style 2 args={
+x filter/.append code={
+\edef\tempa{\thisrow{#1}}\edef\tempb{#2}
+\ifx\tempa\tempb\else\def\pgfmathresult{NaN}\fi
+}
+},
+filter discard warning=false,
+unbounded coords=discard,
+}
+
+\newcommand{\DataFile}{second_derivative_profile_N8.csv}
+
+\pgfplotsset{
+table/col sep=comma,
+/series/exact/.style      = {black, solid, line width=1.3pt},
+/series/uniform/.style    = {blue, mark=square, mark size=1.6pt, mark repeat=20},
+/series/positional/.style = {orange!90!black, mark=o, mark size=2.3pt, mark repeat=20},
+}
+
+\begin{document}
+\begin{tikzpicture}
+\begin{axis}[
+scale only axis,
+width=0.65\textwidth,
+height=0.50\textwidth,
+xmode=log,
+ymode=log,
+xlabel={$x$},
+ylabel={\phantom{$|u''(x)|$}},
+xmin=1e-4,
+xmax=1.25,
+ymin=0.6,
+ymax=60,
+xtick={1e-4,1e-3,1e-2,1e-1,1},
+ytick={1,10},
+every axis plot/.append style={line width=0.9pt},
+tick label style={font=\small},
+label style={font=\small},
+title style={font=\small},
+]
+
+\addplot[/series/exact, discard if not={p}{3}]
+table[x=x, y=dd_exact] {\DataFile};
+
+\addplot[/series/uniform, discard if not={p}{3}]
+table[x=x, y=dd_uniform] {\DataFile};
+
+\addplot[/series/positional, discard if not={p}{3}]
+table[x=x, y=dd_positional] {\DataFile};
+
+\end{axis}
+\end{tikzpicture}
+\end{document}

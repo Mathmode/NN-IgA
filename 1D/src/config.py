@@ -98,60 +98,33 @@ PRECISION: str = "float64"
 
 # =========================================================================
 # HELMHOLTZ experiment -- parametric 1D Helmholtz transmission family.
-#   -(sigma u')' + alpha(x;omega) u = 0,  alpha = -omega^2 rho,  on (0,1),
-#   interface x_I=1/2, Dirichlet u(0)=0, Neumann sigma(1)u'(1)=g_N=10 pi.
-# Self-contained block (alongside the singular config above, untouched).
-# Consumed by src.helmholtz.* and scripts/{train_helmholtz,eval_helmholtz}.py.
+#   -(sigma u')' - rho u = 0 on (0,1) (omega = 1), interface x_I=1/2,
+#   Dirichlet u(0)=0, Neumann sigma(1)u'(1)=g_N=10 pi.
+# Parameter: wavenumber contrast c = k1/k2, k2 = 5 pi, rho1 = (c k2)^2 sigma1.
+# Fixed PDE data live in src.helmholtz.mesh_helmholtz_global.
+# Consumed by scripts/{train_helmholtz,eval_helmholtz}.py.
 # =========================================================================
-import math as _math
-
 HELMHOLTZ: Dict[str, object] = {
     "experiment": "helmholtz",
-    # Fixed PDE data (mirrors src.helmholtz.pde_helmholtz constants).
-    "domain": (0.0, 1.0),
-    "x_interface": 0.5,
-    "sigma": (1.0, 4.0),
-    "rho": ((31.0 * _math.pi / 2.0) ** 2, 100.0 * _math.pi ** 2),
-    "g_N": 10.0 * _math.pi,
-    # Parameter (frequency) range + sampling.
-    "omega_min": 1.0,
-    "omega_max": 4.0,
-    "n_omega": 100,                # target safe frequencies after resonance pruning
-                                   #   (~100 survive the +/-0.02 bands; 80-120 window)
     "train_frac": 0.7,             # 70/30 train/test (endpoints kept if safe)
-    "resonance_tol": 0.02,         # exclude +/- this band around each resonance
-    # Architecture (positional density network); input (omega, xi, axis_id).
+    # Architecture (positional density network); input (c, xi, side).
     "hidden_dims": (32, 32),
     "activation": "tanh",
-    "input_dim": 3,
-    "input_encoding": "omega_xi_axis",   # singular's (beta,xi,log) -> (omega,xi,axis_id)
-    # Mesh / continuation (eval extrapolates to N=256).
-    "levels": (16, 32, 64, 128),
-    "eval_levels": (16, 32, 64, 128, 256),
-    "anchor_N": 128,
     "p_values": (2, 3),
     "seeds": (0, 1, 2, 3),
-    # Bounded-logit cap T and minimum cell size (per-half softmax floor).
+    # Bounded-logit cap T and minimum cell size (softmax floor).
     "T_cap": 5.0,
     "h_min": 1e-7,
-    # Training (mirrors singular's residual-normalized AdamW recipe).
-    "loss": "residual_normalized",        # eta^2 / |u*_omega|^2_{H1}
-    "optimizer": "adamw",
+    # Optimizer (fixed protocol; the val protocol uses config.VAL).
     "lr": 1e-3,
     "weight_decay": 1e-6,
     "batch_size": 16,
-    "epochs_per_level": {16: 150, 32: 150, 64: 120, 128: 100},
-
-    # ---- helmholtz reparametrization: parameter = wavenumber CONTRAST c = k1/k2 ----
-    # (omega/sigma/rho2/g_N above are FIXED; rho_1 = (c*k2)^2*sigma1 -> k1 = c*k2,
-    #  k2 = 5*pi.  base case c=3.1 reproduces the original instance.)
-    "param": "contrast",                  # mode flag: "contrast" (helmholtz) vs legacy "omega"
+    # Contrast range + sampling.
     "c_min": 1.5,
     "c_max": 6.0,
     "n_c": 100,                           # target safe contrasts after resonance pruning
     "resonance_tol_c": 0.02,              # exclude +/- band around matching-determinant zeros
     # Global mesh (free split across the C^0 interface) + Nyquist h_max safeguard.
-    "mesh": "global",                     # "global" (helmholtz) vs legacy "two_patch"
     "g_min_target": 2.5,                  # points-per-wavelength cap: k*h <= 2*pi/g_min
     "input_dim_c": 3,                     # network input (c, xi, side)
     # Level ladder STARTS at 64: the contrast-continuation warm phase runs at the

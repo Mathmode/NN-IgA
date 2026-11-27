@@ -1,18 +1,17 @@
 from __future__ import annotations
 
-"""Positional density network for the helmholtz experiment (1D Helmholtz, two-patch C^0 mesh).
+"""Positional density network for the helmholtz experiment (1D Helmholtz, global C^0 mesh).
 
-Input encoding phi(omega, xi, axis_id) = (omega, xi_local, axis_id), a 3-feature
-tanh MLP (default 2x32). This MIRRORS the singular encoding (beta -> omega) but:
+Input encoding phi(c, xi, side) = (c, xi, side), a 3-feature tanh MLP (default
+2x32). This MIRRORS the singular encoding (beta -> c) but:
   * drops singular's log(xi + 1/N) feature -- that feature grades toward the x=0
     power singularity, which helmholtz does not have (the field is oscillatory with a
     material interface, not a corner singularity);
-  * adds an axis_id in {0,1} so the same weights specialise the two halves
-    [0,1/2] and [1/2,1] independently (the left half carries the shorter
-    wavelength k1 > k2) -- the per-half idea ported from the 2D lshape network.
+  * adds a side flag in {0,1} (left/right of the interface x_I = 1/2) so the
+    network can raise the element density in the short-wavelength left layer.
 
-N-independent: collocated at the n_half = N/2 cell midpoints of each half, so a
-single trained network serves every level (coarse-to-fine continuation).
+N-independent: collocated at the N-1 global segment midpoints, so a single
+trained network serves every level (coarse-to-fine continuation).
 """
 
 from dataclasses import dataclass
@@ -24,8 +23,6 @@ ensure_double_precision()
 import jax
 import jax.numpy as jnp
 from jax.tree_util import register_pytree_node_class
-
-from src.helmholtz.mesh_helmholtz import knots_two_patch
 
 Array = jnp.ndarray
 
@@ -68,34 +65,12 @@ def _forward(params: PDNParamsH, feats: Array) -> Array:
     return (h @ W_out + b_out).reshape(-1)
 
 
-def _half_logits(params: PDNParamsH, omega: Array, n_half: int, axis_id: float, T: float) -> Array:
-    xi = (jnp.arange(int(n_half), dtype=DEFAULT_DTYPE) + 0.5) / float(int(n_half))
-    omega_b = jnp.broadcast_to(jnp.asarray(omega, dtype=DEFAULT_DTYPE), xi.shape)
-    aid = jnp.full(xi.shape, float(axis_id), dtype=DEFAULT_DTYPE)
-    feats = jnp.stack([omega_b, xi, aid], axis=-1)
-    z = _forward(params, feats)
-    z = z - jnp.mean(z)                                    # gauge fix (per half)
-    T_t = jnp.asarray(float(T), dtype=z.dtype)
-    return T_t * jnp.tanh(z / T_t)                         # bounded logits in [-T, T]
-
-
-def knots_from_network(params: PDNParamsH, omega: Array, n_elem: int, degree: int,
-                       *, T: float, h_min: float) -> Array:
-    """Build the two-patch C^0 knot vector predicted by the network at one omega."""
-    n_half = int(n_elem) // 2
-    if 2 * n_half != int(n_elem):
-        raise ValueError(f"helmholtz needs even N; got {n_elem}.")
-    theta_l = _half_logits(params, omega, n_half, axis_id=0.0, T=T)
-    theta_r = _half_logits(params, omega, n_half, axis_id=1.0, T=T)
-    return knots_two_patch(theta_l, theta_r, int(degree), h_min=h_min)
-
-
 # --------------------------------------------------------------------------
-# Global-mesh variant (helmholtz reparametrization: parameter = contrast c).
+# Global mesh (helmholtz parametrization: parameter = contrast c).
 # Input encoding (c, xi, side): side = 0 on the left (high-k) layer, 1 on the
 # right, so the network can raise element density in the short-wavelength layer.
 # Collocates N-1 global cell midpoints (the global softmax has N-1 segments).
-# Neutral init (no c-biased warm start); gauge-fix + T*tanh as in the per-half map.
+# Neutral init (no c-biased warm start); gauge fix + bounded logits T*tanh(z/T).
 # --------------------------------------------------------------------------
 def _global_logits(params: PDNParamsH, c: Array, N: int, T: float) -> Array:
     n_seg = int(N) - 1
@@ -137,7 +112,7 @@ def params_from_flat_dict(d) -> PDNParamsH:
 
 
 __all__ = [
-    "PDNParamsH", "init_params", "knots_from_network",
+    "PDNParamsH", "init_params",
     "knots_from_network_global", "_global_logits",
     "params_to_flat_dict", "params_from_flat_dict",
 ]
