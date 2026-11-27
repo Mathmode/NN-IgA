@@ -10,14 +10,18 @@ reproduces the shipped reference's KNOT VECTORS to machine precision.
 
 The re-solved coefficients differ from the shipped pkl by ~1e-4 relative (a
 solver-evolution drift: q_K=6/q_F=3 integrate the polynomial stiffness/forcing
-exactly, so the gap is not quadrature).  ``review/reference_accuracy_check.py``
-bounds the reference's own discretization error by a self-convergence study; the
-reference is >~1e2x more accurate than the reported L-shape errors either way, so
-its uncertainty does not affect the Table 4 comparisons.
+exactly, so the gap is not quadrature).  ``scripts/reference_accuracy_check.py``
+bounds the reference's own discretization error by a self-convergence study.
+
+Revision v2: the shipped v1 cache leaves the re-entrant row {y=1/2, x>1/2}
+unconstrained (Greville round-off at the multiplicity-p knot when it was built).
+The current ``free_mask_lshape`` is correct; each entry now records its Dirichlet
+violation (max |u_h| on the closed removed quadrant and on the outer boundary,
+and the max constrained coefficient), which must be exactly zero.
 
 Usage:
     python 2D/scripts/generate_reference_lshape.py --spot-check          # 3 sigmas, no write
-    python 2D/scripts/generate_reference_lshape.py --out references/reference_lshape_regen.pkl
+    python 2D/scripts/generate_reference_lshape.py --out references_v2/reference_lshape.pkl
 """
 from __future__ import annotations
 
@@ -39,6 +43,7 @@ import numpy as np
 import jax.numpy as jnp
 
 from src.nonparametric.solver_2d import galerkin_solve_lshape
+from src.nonparametric.lshape.conformity import dirichlet_violation
 from common.bspline_basis import bspline_basis_local
 from common.parameter_sampling import sample_uniform_log_base10
 
@@ -90,12 +95,15 @@ def build_entry(s1: float, s2: float, kn: np.ndarray) -> dict:
                                 float(s1), float(s2), q_K=Q_K, q_F=Q_F)
     u = np.asarray(res.u_h)
     sizes = np.diff(np.unique(kn))
+    viol = dirichlet_violation(u, kn, kn, P)
     return {
         "sigma1": float(s1), "sigma2": float(s2),
         "u_coeffs": u, "knots_x": kn.copy(), "knots_y": kn.copy(),
         "p": P, "q_K": Q_K, "q_F": Q_F, "refine_corner": REFINE_CORNER,
         "dof_count": int(u.size), "max_h": float(sizes.max()),
         "sigma_h1_seminorm_sq": _sigma_h1_seminorm_sq(u, kn, s1, s2),
+        "ritz_energy": float(res.ritz_energy),
+        "dirichlet_violation": viol,
         "order": f"iga_p{P}",
     }
 
@@ -137,7 +145,11 @@ def main():
                 if u_ship.shape == e["u_coeffs"].shape:
                     msg = (f"  rel||u_regen - u_shipped|| = "
                            f"{np.linalg.norm(e['u_coeffs']-u_ship)/np.linalg.norm(u_ship):.2e}")
-            print(f"  sigma=({s1:.4f},{s2:.4f}): dof={e['dof_count']} max_h={e['max_h']:.4f}{msg}")
+            v = e["dirichlet_violation"]
+            print(f"  sigma=({s1:.4f},{s2:.4f}): dof={e['dof_count']} max_h={e['max_h']:.4f}{msg}"
+                  f"  F(u_h)={-2.0 * e['ritz_energy']:.12e}"
+                  f"  dirichlet: quad={v['quadrant']:.1e} bdry={v['boundary']:.1e}"
+                  f" coef={v['coefficients']:.1e}", flush=True)
         return 0
 
     axis = sample_uniform_log_base10(int(args.n_sigma), -1.0, 1.0)
@@ -146,8 +158,14 @@ def main():
     for i, s1 in enumerate(axis):
         for s2 in axis:
             cache[(float(s1), float(s2))] = build_entry(float(s1), float(s2), kn)
-        print(f"  row {i+1}/{len(axis)} done ({time.time()-t0:.0f}s)", flush=True)
+        worst = max(max(e["dirichlet_violation"].values()) for e in cache.values())
+        print(f"  row {i+1}/{len(axis)} done ({time.time()-t0:.0f}s); "
+              f"worst Dirichlet violation so far {worst:.1e}", flush=True)
+    worst = max(max(e["dirichlet_violation"].values()) for e in cache.values())
+    if worst > 1e-14:
+        raise SystemExit(f"Dirichlet violation {worst:.2e} > 1e-14: refusing to write the cache")
     if args.out:
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
         with open(args.out, "wb") as fh:
             pickle.dump(cache, fh)
         print(f"wrote {len(cache)} entries -> {args.out}")

@@ -211,7 +211,7 @@ def test_A_nonparametric_and_parametric_invariants():
 
 
 # --------------------------------------------------------------------------
-# Test B -- trained checkpoints, held-out sigmas, levels incl. zero-shot N=64
+# Test B -- trained checkpoints, validation sigmas, levels incl. zero-shot N=64
 # --------------------------------------------------------------------------
 def run_test_B(verbose: bool = True):
     from common.parameter_sampling import build_lshape_grid
@@ -222,8 +222,8 @@ def run_test_B(verbose: bool = True):
         train_frac=float(TRAIN_VAL["train_frac"]), seed=int(SPLIT_SEED),
         val_frac=float(TRAIN_VAL["val_frac"]),
     )
-    test_sigmas = grid["test"]                       # 60 held-out pairs
-    full_grid = grid["grid"]                         # all 400 pairs (N=64 sweep)
+    val_sigmas = grid["val"]
+    train_sigmas = grid["train"]
 
     report = {}
     for p in (2, 3):
@@ -243,8 +243,8 @@ def run_test_B(verbose: bool = True):
         tot = {}
         n = 0
         min_gap = np.inf
-        cases = ([(s, N) for s in test_sigmas for N in (4, 8, 16, 32, 64)]
-                 + [(s, 64) for s in full_grid])
+        cases = ([(s, N) for s in val_sigmas for N in (4, 8, 16, 32, 64)]
+                 + [(s, 64) for s in train_sigmas])
         for s, N in cases:
             half = N // 2
             sig = jnp.asarray([float(s[0]), float(s[1])])
@@ -257,8 +257,8 @@ def run_test_B(verbose: bool = True):
                 min_gap = min(min_gap, float(np.min(np.abs(others - 0.5))))
         report[p] = dict(meshes=n, violations=tot, min_gap_to_anchor=min_gap)
         if verbose:
-            print(f"  [p={p}] {n} predicted meshes (60 test sigmas x N in "
-                  f"{{4,8,16,32,64}} + 400-grid at zero-shot N=64, both axes): "
+            print(f"  [p={p}] {n} predicted meshes (60 validation sigmas x N in "
+                  f"{{4,8,16,32,64}} + 280 training parameters at zero-shot N=64, both axes): "
                   f"violations {tot}; min |knot-0.5| = {min_gap:.3e}")
     return report
 
@@ -380,7 +380,7 @@ def test_D_anchor_fixed():
 if __name__ == "__main__":
     print("Block/interface admissibility audit -- L-shape (anchor 0.5, mult p)\n")
     run_test_A()
-    print("\n== Test B: trained checkpoints (seed 0), held-out sigmas, N incl. 64 ==")
+    print("\n== Test B: trained checkpoints (seed 0), validation sigmas, N incl. 64 ==")
     run_test_B()
     print()
     run_test_C()

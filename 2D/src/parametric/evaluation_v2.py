@@ -1121,14 +1121,12 @@ def evaluate_lshape(
             if run_corrector:
                 t0_c = time.perf_counter()
                 sigma_jx = jnp.asarray(sigma, dtype=DEFAULT_DTYPE)
-                half = int(N) // 2
-                xi = cell_midpoints(half)
-                zx_l = forward(params, sigma_jx, xi, axis_id=0.0)
-                zx_r = forward(params, sigma_jx, xi, axis_id=0.5)
-                zy_l = forward(params, sigma_jx, xi, axis_id=1.0)
-                zy_r = forward(params, sigma_jx, xi, axis_id=1.5)
+                from src.parametric.positional_density_network_2d import bounded_logits, lshape_logits, lshape_policy
+                T, floor = lshape_policy(params, N, p)
+                raw = lshape_logits(params, sigma_jx, N, 0.) + lshape_logits(params, sigma_jx, N, 1.)
+                zx_l, zx_r, zy_l, zy_r = (bounded_logits(v, T) for v in raw)
                 result, knots_x_opt, knots_y_opt = corrector_lshape(
-                    zx_l, zx_r, zy_l, zy_r, sigma_jx,
+                    zx_l, zx_r, zy_l, zy_r, sigma_jx, T=T, h_min=floor,
                     p=p, n_elem=int(N), q_K=q_K, q_F=q_F,
                     max_iter=int(corrector_max_iter),
                 )

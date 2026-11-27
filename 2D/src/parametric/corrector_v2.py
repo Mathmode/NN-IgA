@@ -146,6 +146,7 @@ def corrector_lshape(
     q_F: int = 2,
     max_iter: int = 80,
     T: float | None = None,
+    h_min: float = 0.0,
     ftol: float | None = None,
     gtol: float | None = None,
 ) -> tuple[RAdaptResult, Array, Array]:
@@ -177,8 +178,8 @@ def corrector_lshape(
         tx_r = theta_flat[half:2 * half]
         ty_l = theta_flat[2 * half:3 * half]
         ty_r = theta_flat[3 * half:]
-        knots_x = theta_to_knots_lshape(tx_l, tx_r, p)
-        knots_y = theta_to_knots_lshape(ty_l, ty_r, p)
+        knots_x = theta_to_knots_lshape(tx_l, tx_r, p, h_min=h_min)
+        knots_y = theta_to_knots_lshape(ty_l, ty_r, p, h_min=h_min)
         res = galerkin_solve_lshape(
             knots_x, knots_y, p, n_eff, n_eff,
             sigma[0], sigma[1],
@@ -206,8 +207,8 @@ def corrector_lshape(
     tx_r = jnp.asarray(result.theta_final[half:2 * half], dtype=DEFAULT_DTYPE)
     ty_l = jnp.asarray(result.theta_final[2 * half:3 * half], dtype=DEFAULT_DTYPE)
     ty_r = jnp.asarray(result.theta_final[3 * half:], dtype=DEFAULT_DTYPE)
-    knots_x_opt = theta_to_knots_lshape(tx_l, tx_r, p)
-    knots_y_opt = theta_to_knots_lshape(ty_l, ty_r, p)
+    knots_x_opt = theta_to_knots_lshape(tx_l, tx_r, p, h_min=h_min)
+    knots_y_opt = theta_to_knots_lshape(ty_l, ty_r, p, h_min=h_min)
     return result, knots_x_opt, knots_y_opt
 
 

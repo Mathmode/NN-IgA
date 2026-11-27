@@ -106,20 +106,16 @@ def init_params(seed: int) -> PDNParams:
 # -----------------------------------------------------------------------------
 
 
-def _input_features(beta: Array, xi: Array, N: int) -> Array:
+def _input_features(beta: Array, xi: Array, N: int, n_features: int = 3) -> Array:
     """Build feature vector phi(beta, xi, N) = (beta, xi, log(xi + 1/N)).
 
-    All shapes are broadcast to (..., 3).
+    All shapes are broadcast to (..., 3). With ``n_features=2`` (revision v2
+    ablation, a network whose first layer has two inputs) the log feature is
+    dropped: phi = (beta, xi).
     """
     eps = jnp.asarray(1.0 / float(int(N)), dtype=xi.dtype)
-    feat = jnp.stack(
-        [
-            jnp.broadcast_to(beta, xi.shape),
-            xi,
-            jnp.log(xi + eps),
-        ],
-        axis=-1,
-    )
+    cols = [jnp.broadcast_to(beta, xi.shape), xi, jnp.log(xi + eps)]
+    feat = jnp.stack(cols[: int(n_features)], axis=-1)
     return feat.astype(DEFAULT_DTYPE)
 
 
@@ -133,7 +129,7 @@ def forward_scalar(params: PDNParams, beta: float, xi: Array, N: int) -> Array:
     """
     beta_t = jnp.asarray(beta, dtype=DEFAULT_DTYPE)
     xi_t = jnp.asarray(xi, dtype=DEFAULT_DTYPE).reshape(-1)
-    x = _input_features(beta_t, xi_t, int(N))                # (n_xi, 3)
+    x = _input_features(beta_t, xi_t, int(N), int(params.layers[0][0].shape[0]))  # (n_xi, 3)
     h = x
     for (W, b) in params.layers[:-1]:
         h = jnp.tanh(h @ W + b)

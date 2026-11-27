@@ -34,6 +34,8 @@ def main() -> None:
     ap.add_argument("--test-cs", type=Path, default=None)
     ap.add_argument("--max-cs", type=int, default=None)
     ap.add_argument("--corrector-max-iter", type=int, default=0)
+    ap.add_argument("--no-hmax", action="store_true",
+                    help="Network mesh without the Nyquist h_max cap (ablation; must match training).")
     ap.add_argument("--force", action="store_true",
                     help="Re-evaluate even if a complete summary CSV for this "
                          "seed already exists (default: skip complete seeds).")
@@ -56,7 +58,7 @@ def main() -> None:
     from src.config import HELMHOLTZ
     import src.helmholtz.mesh_helmholtz_global as G
     from src.helmholtz.network_helmholtz import params_from_flat_dict, knots_from_network_global
-    from src.helmholtz.mesh_helmholtz import uniform_two_patch_knots
+    from src.helmholtz.mesh_helmholtz_global import uniform_two_patch_knots
 
     if int(args.corrector_max_iter) > 0:
         print("[eval helmholtz] note: helmholtz is corrector-free; ignoring --corrector-max-iter.")
@@ -83,7 +85,7 @@ def main() -> None:
                     kn = uniform_two_patch_knots(N, p)             # honest 50:50 baseline
                 else:
                     kn = knots_from_network_global(params, jnp.asarray(c), N, p,
-                                                   T=T, h_min=h_min, use_hmax=True)
+                                                   T=T, h_min=h_min, use_hmax=not args.no_hmax)
                 u = G.solve_u(kn, p, rho1, nq)
                 e2 = float(G.eta2(kn, p, u, rho1, nq))
                 re = G.h1_rel(kn, p, u, ex)

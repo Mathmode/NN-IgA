@@ -119,6 +119,9 @@ def train_with_continuation(
     clip_norm: float = 1.0,
     warmup_epochs: int = 2,
     history_header_note: str = "",
+    loss: str = "eta",
+    level_feature: bool = False,
+    mesh_schedule: tuple = (),
 ) -> ContinuationResult:
     """Run coarse-to-fine continuation (decision 7-E default).
 
@@ -176,6 +179,8 @@ def train_with_continuation(
         if last is not None:
             _path, _level = last
             params = load_checkpoint(_path)
+            if (params.level_feature, params.mesh_schedule) != (level_feature, mesh_schedule):
+                raise ValueError("checkpoint mesh policy differs from training configuration")
             # Skip already-completed levels.
             try:
                 start_idx = levels_sorted.index(_level) + 1
@@ -187,7 +192,8 @@ def train_with_continuation(
             )
 
     if start_idx == 0:
-        params = init_params(seed=int(seed), sigma_dim=int(sigma_dim), hidden_dims=tuple(hidden_dims))
+        params = init_params(seed=int(seed), sigma_dim=int(sigma_dim), hidden_dims=tuple(hidden_dims),
+                             level_feature=level_feature, mesh_schedule=mesh_schedule)
         if bool(uniform_init):
             # Decision 7-E: zero-init so the network produces the uniform
             # mesh on the first iteration (N_φ(y, ξ) ≡ 0 ⇒ θ_φ(y) = unif).
@@ -195,7 +201,7 @@ def train_with_continuation(
                 (jnp.zeros_like(W), jnp.zeros_like(b))
                 for (W, b) in params.layers
             ]
-            params = PDN2DParams(layers=zeroed_layers)
+            params = PDN2DParams(zeroed_layers, level_feature, mesh_schedule)
             print("[continuation] uniform-init: network zero-initialised "
                   "(--uniform-init flag, decision 7-E)")
 
@@ -231,7 +237,8 @@ def train_with_continuation(
         # ``params`` as the inherited value from the prior level (set below).
         if str(init_mode) == "uniform" and idx > start_idx:
             params = init_params(seed=int(seed), sigma_dim=int(sigma_dim),
-                                 hidden_dims=tuple(hidden_dims))
+                                 hidden_dims=tuple(hidden_dims),
+                             level_feature=level_feature, mesh_schedule=mesh_schedule)
             print(f"[continuation] init_mode=uniform: re-initialised θ0 at level "
                   f"N={N} (no warm-start transfer)")
         ep = int(epochs_per_level.get(N, 5))
@@ -248,7 +255,13 @@ def train_with_continuation(
                        if val_forward_factory is not None else None)
         h1_metric = (h1_metric_factory(int(N))
                      if h1_metric_factory is not None else None)
-        if experiment == "arctan":
+        if str(loss) == "ritz":
+            from src.parametric.ritz_loss_2d import make_batch_loss_ritz
+            batch_loss = make_batch_loss_ritz(
+                experiment=experiment, p=int(p), n_elem=int(N), q_K=int(q_K), q_F=int(q_F),
+                epsilon=float(epsilon), solver=str(solver),
+            )
+        elif experiment == "arctan":
             batch_loss = make_batch_loss_arctan(
                 p=int(p), n_elem=int(N), q_K=int(q_K), q_F=int(q_F), q_est=int(q_est),
                 epsilon=float(epsilon), solver=str(solver),
@@ -261,6 +274,7 @@ def train_with_continuation(
 
         cfg = TrainConfig(
             n_epochs=ep,
+            val_loss_scale=1.0 if loss == "ritz" else 0.5,
             batch_size=int(batch_size),
             lr_init=float(lr_init),
             lr_end=float(lr_end),

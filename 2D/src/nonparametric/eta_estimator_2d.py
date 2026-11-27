@@ -44,7 +44,7 @@ from src.nonparametric.arctan.pde import (
     g_sigma_neumann_right,
     g_sigma_neumann_top,
 )
-from src.nonparametric.lshape.pde import sigma_field
+from src.nonparametric.lshape.integration import volume, flux_face
 from src.nonparametric.solver_2d import _element_data, galerkin_solve_arctan, galerkin_solve_lshape
 
 Array = jnp.ndarray
@@ -233,60 +233,7 @@ def _eta_volume_lshape(
     sigma2: Array,
     q_est: int,
 ) -> Array:
-    a_x, b_x, U_local_x, idx_local_x = _element_data(knots_x, p, n_elem_x)
-    a_y, b_y, U_local_y, idx_local_y = _element_data(knots_y, p, n_elem_y)
-    xq, wq_x = rule_gl_on_elements(a_x, b_x, q_est)
-    yq, wq_y = rule_gl_on_elements(a_y, b_y, q_est)
-    Nx, _, d2Nx = basis_batch_for_degree(p, xq, U_local_x)
-    Ny, _, d2Ny = basis_batch_for_degree(p, yq, U_local_y)
-
-    C_loc = _gather_local_coeffs(C, idx_local_x, idx_local_y)
-    uhxx = jnp.einsum("xyij,xqi,yrj->xyqr", C_loc, d2Nx, Ny)
-    uhyy = jnp.einsum("xyij,xqi,yrj->xyqr", C_loc, Nx, d2Ny)
-
-    XX = jnp.broadcast_to(xq[:, None, :, None], uhxx.shape)
-    YY = jnp.broadcast_to(yq[None, :, None, :], uhxx.shape)
-    sigma_at = sigma_field(XX, YY, sigma1, sigma2)
-    f_vals = jnp.ones_like(uhxx)            # f = 1 on L-shape
-    R = -sigma_at * (uhxx + uhyy) - f_vals
-
-    w_2d = wq_x[:, None, :, None] * wq_y[None, :, None, :]
-    R2 = jnp.sum(R * R * w_2d, axis=(2, 3))
-    hx = b_x - a_x
-    hy = b_y - a_y
-    hE_sq = hx[:, None] ** 2 + hy[None, :] ** 2
-
-    # ---- Element-centroid indicator for the four sub-quadrants. ----
-    mid_x = 0.5 * (a_x + b_x)
-    mid_y = 0.5 * (a_y + b_y)
-    in_x_right = jnp.heaviside(mid_x - 0.5, 1.0)               # 1 if mid_x >= 0.5
-    in_y_low   = jnp.heaviside(0.5 - mid_y, 1.0)               # 1 if mid_y <= 0.5
-    in_x_left = 1.0 - in_x_right
-    in_y_high = 1.0 - in_y_low
-
-    # Removed quadrant (Dirichlet u=0, NOT in L-shape): dropped from the sum.
-    in_removed = in_x_right[:, None] * in_y_low[None, :]
-    keep = 1.0 - in_removed
-
-    # σ_E per element (constant in the element interior because element edges
-    # align with the x=0.5 / y=0.5 material interfaces):
-    #     top-left  (x<0.5, y>=0.5): σ_E = 1
-    #     bot-left  (x<0.5, y< 0.5): σ_E = σ1
-    #     top-right (x>=0.5,y>=0.5): σ_E = σ2
-    #     removed   (x>=0.5,y< 0.5): keep = 0, so σ_E is irrelevant (use 1 to
-    #                                avoid division-by-zero in the AD trace).
-    one = jnp.asarray(1.0, dtype=DEFAULT_DTYPE)
-    sigma1_ = jnp.asarray(sigma1, dtype=DEFAULT_DTYPE)
-    sigma2_ = jnp.asarray(sigma2, dtype=DEFAULT_DTYPE)
-    sigma_top_left  = in_x_left[:, None]  * in_y_high[None, :] * one
-    sigma_bot_left  = in_x_left[:, None]  * in_y_low[None, :]  * sigma1_
-    sigma_top_right = in_x_right[:, None] * in_y_high[None, :] * sigma2_
-    sigma_removed   = in_removed * one          # placeholder, multiplied by keep=0
-    sigma_E = sigma_top_left + sigma_bot_left + sigma_top_right + sigma_removed
-
-    # ρ_E² = h_E² / σ_E  (Bernardi-Verfürth scaling for piecewise σ Poisson).
-    weighted = jnp.where(keep > 0.0, (hE_sq / sigma_E) * R2, 0.0)
-    return jnp.maximum(jnp.sum(weighted), 0.0)
+    return volume(C, knots_x, knots_y, p, sigma1, sigma2, q_est)
 
 
 # --------------------------------------------------------------------------
@@ -356,118 +303,8 @@ def _eta_jump_lshape(
     the L-shape's external Dirichlet boundary, where u = 0; no flux-jump
     contribution there.
     """
-    # With multiplicity-p knots at 0.5 the element layout per axis is
-    #   [0, half_real)               — real left/lower-half elements,
-    #   [half_real, half_real + p - 1) — (p - 1) zero-length elements at 0.5,
-    #   [half_real + p - 1, n_elem)  — real right/upper-half elements,
-    # where ``n_elem = N + (p - 1)`` and ``half_real = N // 2``.
-    # Recovering N: ``N = n_elem - (p - 1)``  →  ``half_real = (n_elem - p + 1) // 2``.
-    half_x = int((n_elem_x - p + 1) // 2)
-    half_y = int((n_elem_y - p + 1) // 2)
-    right_x = int(half_x + p - 1)        # FIRST real right-half element index
-    right_y = int(half_y + p - 1)
-    n_right_x = int(n_elem_x - right_x)
-    n_right_y = int(n_elem_y - right_y)
-
-    a_x, b_x, U_local_x, idx_local_x = _element_data(knots_x, p, n_elem_x)
-    a_y, b_y, U_local_y, idx_local_y = _element_data(knots_y, p, n_elem_y)
-
-    one = jnp.asarray(1.0, dtype=DEFAULT_DTYPE)
-    sigma1_ = jnp.asarray(sigma1, dtype=DEFAULT_DTYPE)
-    sigma2_ = jnp.asarray(sigma2, dtype=DEFAULT_DTYPE)
-
-    # ---- (a) x = 0.5, y in [0.5, 1] : top-left (σ⁻=1) | top-right (σ⁺=σ2) ----
-    # Common 1D y-grid on the upper-half real elements (same on both sides
-    # of x = 0.5: y direction is untouched by the x interface).
-    ay_up = jax.lax.dynamic_slice(a_y, (right_y,), (n_right_y,))
-    by_up = jax.lax.dynamic_slice(b_y, (right_y,), (n_right_y,))
-    U_local_y_up = jax.lax.dynamic_slice(
-        U_local_y, (right_y, 0), (n_right_y, 2 * p + 2)
-    )
-    idx_local_y_up = jax.lax.dynamic_slice(
-        idx_local_y, (right_y, 0), (n_right_y, p + 1)
-    )
-    yq_up, wq_y_up = rule_gl_on_elements(ay_up, by_up, q_est)
-    Ny_up, _, _ = basis_batch_for_degree(p, yq_up, U_local_y_up)         # (n_right_y, q, p+1)
-
-    x_at_half = jnp.asarray([[0.5]], dtype=DEFAULT_DTYPE)                # (1, 1)
-
-    # LEFT side: rightmost real left-half element (index half_x - 1).
-    # Its right endpoint is exactly x = 0.5.
-    U_local_x_at_left = jax.lax.dynamic_slice(
-        U_local_x, (half_x - 1, 0), (1, 2 * p + 2)
-    )
-    _, dNx_h_left, _ = basis_batch_for_degree(p, x_at_half, U_local_x_at_left)
-    dNx_at_half_left = dNx_h_left[0, 0]                                  # (p+1,)
-    idx_x_at_half_left = idx_local_x[half_x - 1]                         # (p+1,)
-    coeff_at_x05_left = dNx_at_half_left @ C[idx_x_at_half_left, :]      # (n_y,)
-    coeff_local_y_left = coeff_at_x05_left[idx_local_y_up]               # (n_right_y, p+1)
-    dux_left = jnp.einsum("eqj,ej->eq", Ny_up, coeff_local_y_left)       # (n_right_y, q)
-
-    # RIGHT side: first real right-half element (index right_x).
-    # Its left endpoint is exactly x = 0.5.
-    U_local_x_at_right = jax.lax.dynamic_slice(
-        U_local_x, (right_x, 0), (1, 2 * p + 2)
-    )
-    _, dNx_h_right, _ = basis_batch_for_degree(p, x_at_half, U_local_x_at_right)
-    dNx_at_half_right = dNx_h_right[0, 0]                                # (p+1,)
-    idx_x_at_half_right = idx_local_x[right_x]                            # (p+1,)
-    coeff_at_x05_right = dNx_at_half_right @ C[idx_x_at_half_right, :]   # (n_y,)
-    coeff_local_y_right = coeff_at_x05_right[idx_local_y_up]             # (n_right_y, p+1)
-    dux_right = jnp.einsum("eqj,ej->eq", Ny_up, coeff_local_y_right)     # (n_right_y, q)
-
-    # Flux jump on interface (a): J_a = σ⁺ · ∂_x⁺ − σ⁻ · ∂_x⁻
-    #   σ⁺ = σ2 (top-right, x > 0.5),  σ⁻ = 1 (top-left, x < 0.5)
-    J_x = sigma2_ * dux_right - one * dux_left                           # (n_right_y, q)
-    hy_up = by_up - ay_up                                                 # (n_right_y,)
-    sigma_Fa = jnp.maximum(one, sigma2_)
-    eta_x_jump = jnp.sum(hy_up * jnp.sum(wq_y_up * J_x * J_x, axis=1)) / sigma_Fa
-
-    # ---- (b) y = 0.5, x in [0, 0.5] : bot-left (σ⁻=σ1) | top-left (σ⁺=1) ----
-    # (Structural mirror of (a): swap x↔y, swap (σ⁻, σ⁺) = (σ1, 1) instead of (1, σ2).)
-    ax_low = jax.lax.dynamic_slice(a_x, (0,), (half_x,))
-    bx_low = jax.lax.dynamic_slice(b_x, (0,), (half_x,))
-    U_local_x_low = jax.lax.dynamic_slice(
-        U_local_x, (0, 0), (half_x, 2 * p + 2)
-    )
-    idx_local_x_low = jax.lax.dynamic_slice(
-        idx_local_x, (0, 0), (half_x, p + 1)
-    )
-    xq_low, wq_x_low = rule_gl_on_elements(ax_low, bx_low, q_est)
-    Nx_low, _, _ = basis_batch_for_degree(p, xq_low, U_local_x_low)      # (half_x, q, p+1)
-
-    y_at_half = jnp.asarray([[0.5]], dtype=DEFAULT_DTYPE)
-
-    # BELOW side: topmost real lower-half element (index half_y - 1).
-    U_local_y_at_below = jax.lax.dynamic_slice(
-        U_local_y, (half_y - 1, 0), (1, 2 * p + 2)
-    )
-    _, dNy_h_below, _ = basis_batch_for_degree(p, y_at_half, U_local_y_at_below)
-    dNy_at_half_below = dNy_h_below[0, 0]                                # (p+1,)
-    idx_y_at_half_below = idx_local_y[half_y - 1]                        # (p+1,)
-    coeff_at_y05_below = C[:, idx_y_at_half_below] @ dNy_at_half_below   # (n_x,)
-    coeff_local_x_below = coeff_at_y05_below[idx_local_x_low]            # (half_x, p+1)
-    duy_below = jnp.einsum("eqi,ei->eq", Nx_low, coeff_local_x_below)    # (half_x, q)
-
-    # ABOVE side: first real upper-half element (index right_y).
-    U_local_y_at_above = jax.lax.dynamic_slice(
-        U_local_y, (right_y, 0), (1, 2 * p + 2)
-    )
-    _, dNy_h_above, _ = basis_batch_for_degree(p, y_at_half, U_local_y_at_above)
-    dNy_at_half_above = dNy_h_above[0, 0]                                # (p+1,)
-    idx_y_at_half_above = idx_local_y[right_y]                            # (p+1,)
-    coeff_at_y05_above = C[:, idx_y_at_half_above] @ dNy_at_half_above   # (n_x,)
-    coeff_local_x_above = coeff_at_y05_above[idx_local_x_low]            # (half_x, p+1)
-    duy_above = jnp.einsum("eqi,ei->eq", Nx_low, coeff_local_x_above)    # (half_x, q)
-
-    # Flux jump on interface (b): J_b = σ⁺ · ∂_y⁺ − σ⁻ · ∂_y⁻
-    #   σ⁺ = 1 (top-left, y > 0.5),  σ⁻ = σ1 (bot-left, y < 0.5)
-    J_y = one * duy_above - sigma1_ * duy_below                          # (half_x, q)
-    hx_low = bx_low - ax_low                                              # (half_x,)
-    sigma_Fb = jnp.maximum(one, sigma1_)
-    eta_y_jump = jnp.sum(hx_low * jnp.sum(wq_x_low * J_y * J_y, axis=1)) / sigma_Fb
-
-    return jnp.maximum(eta_x_jump + eta_y_jump, 0.0)
+    return (flux_face(C, knots_x, knots_y, p, 1.0, sigma2, True, q_est)
+            + flux_face(C.T, knots_y, knots_x, p, sigma1, 1.0, False, q_est))
 
 
 # --------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 """Verify that summary.csv is written progressively per level.
 
-After ``evaluate_test_split`` returns, the on-disk CSV should contain
+After ``evaluate_test_split_v2`` returns, the on-disk CSV should contain
 exactly the rows the function returned (in the same order). This test also
 checks that the CSV file exists during the call so a killed job leaves
 recoverable partial output.
@@ -11,12 +11,12 @@ import csv
 
 from src import config
 from src.parametric.continuation import train_with_continuation
-from src.parametric.evaluation import evaluate_test_split
+from src.parametric.evaluation_v2 import SUMMARY_V2_FIELDNAMES, evaluate_test_split_v2
 from src.lhs_sampling import generate_splits
 
 
 def test_csv_written_per_level(tmp_path):
-    """File exists with all expected rows after evaluate_test_split returns."""
+    """File exists with all expected rows after evaluate_test_split_v2 returns."""
     config.TRAIN["max_epochs"] = 5
     config.TRAIN["patience"] = 5
     config.TRAIN["train_size"] = 8
@@ -31,7 +31,7 @@ def test_csv_written_per_level(tmp_path):
     )
 
     csv_path = tmp_path / "summary.csv"
-    rows = evaluate_test_split(
+    rows = evaluate_test_split_v2(
         cont.params_final,
         p=2,
         seed=0,
@@ -56,9 +56,8 @@ def test_csv_written_per_level(tmp_path):
     assert len(rows) == expected, "Returned row count mismatch"
 
     # Header fields match the canonical schema.
-    from src.parametric.evaluation import SUMMARY_FIELDNAMES
-    assert tuple(reader.fieldnames or []) == SUMMARY_FIELDNAMES or \
-           list(on_disk_rows[0].keys()) == list(SUMMARY_FIELDNAMES)
+    assert tuple(reader.fieldnames or []) == SUMMARY_V2_FIELDNAMES or \
+           list(on_disk_rows[0].keys()) == list(SUMMARY_V2_FIELDNAMES)
 
 
 def test_csv_grows_monotonically(tmp_path):
@@ -78,7 +77,7 @@ def test_csv_grows_monotonically(tmp_path):
     )
     csv_path = tmp_path / "summary.csv"
     eval_levels = (2, 4, 8)
-    evaluate_test_split(
+    evaluate_test_split_v2(
         cont.params_final,
         p=2, seed=0, test_betas=test_betas,
         eval_levels=eval_levels,

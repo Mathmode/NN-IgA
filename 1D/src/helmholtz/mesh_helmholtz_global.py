@@ -7,12 +7,12 @@ not the frequency. Fixed: omega=1, sigma=(1,4), rho2=100*pi^2 (=> k2=5*pi), g_N=
     k1 = c*k2 = 5*pi*c ,   rho1 = (c*k2)^2 * sigma1 = 25*pi^2 * c^2 .
 c=3.1 reproduces the original instance (k1=31*pi/2).
 
-GLOBAL mesh (replaces the fixed 50:50 per-half family of mesh_helmholtz.py):
-a single softmax over the interior-knot sizes on (0,1); x_I=0.5 is ALWAYS inserted
-as a fixed C^0 knot of multiplicity p; ends clamped (mult p+1). The element split
-across x_I is FREE -> the network can move elements into the short-wavelength
-(high-k) left layer. Ported verbatim from the validated diagnostic
-``scripts/diag_p5_global_radapt.py`` (matched src to max|u_loc-u_src|=0 at c=3.1).
+GLOBAL mesh (replaces the fixed 50:50 per-half mesh family of the earlier
+frequency-parametrized pipeline): a single softmax over the interior-knot sizes on
+(0,1); x_I=0.5 is ALWAYS inserted as a fixed C^0 knot of multiplicity p; ends
+clamped (mult p+1). The element split across x_I is FREE -> the network can move
+elements into the short-wavelength (high-k) left layer. The uniform 50:50 mesh
+(``uniform_two_patch_knots``) is kept as the evaluation baseline.
 
 h_max safeguard (NEW): a per-layer Nyquist-level cap so k_layer*h_e <= kappa_max
 (target points-per-wavelength g_min = 2*pi/kappa_max). Implemented as a single-pass
@@ -39,7 +39,6 @@ import numpy as np
 from common.bspline_basis import bspline_basis_local
 from common.quadrature import rule_gl_on_elements
 from src.helmholtz.solver_indef import solve_indef
-from src.helmholtz.mesh_helmholtz import n_elem_from_knots
 
 Array = jnp.ndarray
 
@@ -60,6 +59,25 @@ def rho1_of_c(c: float) -> float:
 
 def k1_of_c(c: float) -> float:
     return float(c) * K2
+
+
+def n_elem_from_knots(knots: Array, degree: int) -> int:
+    return int(knots.shape[0] - 2 * int(degree) - 1)
+
+
+def uniform_two_patch_knots(n_elem: int, degree: int) -> Array:
+    """Uniform two-patch knots: n_elem/2 equal cells per half, C^0 interface."""
+    p = int(degree)
+    n = int(n_elem)
+    if n % 2 != 0:
+        raise ValueError(f"helmholtz needs even N (got {n}); n_half = N/2 per patch.")
+    half = n // 2
+    interior_l = jnp.linspace(0.0, X_I, half + 1, dtype=DEFAULT_DTYPE)[1:-1]
+    interior_r = jnp.linspace(X_I, 1.0, half + 1, dtype=DEFAULT_DTYPE)[1:-1]
+    interface = jnp.full((p,), X_I, dtype=DEFAULT_DTYPE)
+    left = jnp.zeros((p + 1,), dtype=DEFAULT_DTYPE)
+    right = jnp.ones((p + 1,), dtype=DEFAULT_DTYPE)
+    return jnp.concatenate([left, interior_l, interface, interior_r, right])
 
 
 # ==========================================================================
@@ -325,7 +343,7 @@ def eff_index(knots, p, u_full, rho1, exact, nq_eta: int) -> float:
 
 __all__ = [
     "X_I", "SIGMA1", "SIGMA2", "RHO2", "G_N", "OMEGA", "K2", "KAPPA_MAX", "G_MIN_TARGET",
-    "rho1_of_c", "k1_of_c", "global_knot_map", "uniform_logits", "effective_g_min",
+    "rho1_of_c", "k1_of_c", "n_elem_from_knots", "uniform_two_patch_knots", "global_knot_map", "uniform_logits", "effective_g_min",
     "split_counts", "ExactContrast", "matching_matrix", "resonance_safe_c", "sample_contrasts",
     "quad_order", "solve_u", "uh_deriv", "eta2", "h1_rel", "eff_index",
 ]

@@ -84,6 +84,10 @@ def main():
     ap.add_argument("--n-test", type=int, default=None)
     ap.add_argument("--n-epochs", type=int, default=None)
     ap.add_argument("--batch-size", type=int, default=None)
+    ap.add_argument("--lr-init", type=float, default=None, help="Override the initial learning rate.")
+    ap.add_argument("--lr-end", type=float, default=None, help="Override the final learning rate.")
+    ap.add_argument("--loss", choices=["eta", "ritz"], default="eta",
+                    help="Training loss: eq-26 estimator (paper) or Ritz energy J/|J_unif| (ablation).")
     ap.add_argument("--protocol", choices=["fixed", "std", "val"], default="fixed",
                     help="'val' (paper): fixed 70/15/15 split shared across seeds, "
                          "validation early stopping, best-val checkpoint. 'std': early "
@@ -108,6 +112,8 @@ def main():
     p_fe = int(args.p)
     if args.output_dir:
         out_dir = Path(args.output_dir)
+    elif args.loss == "ritz":
+        out_dir = _PROJECT_ROOT / "data_results_v2" / f"{PROBLEM}_ritz" / f"p{p_fe}"
     else:
         base = _PROJECT_ROOT / "data_results" / PROBLEM / f"p{p_fe}"
         out_dir = base / f"{PROBLEM}_theta0" if args.init_mode == "uniform" else base
@@ -202,6 +208,10 @@ def main():
         lr_end_use = float(TRAIN["lr2"])
         es_kw = {}
 
+    if args.lr_init is not None:
+        lr_init_use = float(args.lr_init)
+    if args.lr_end is not None:
+        lr_end_use = float(args.lr_end)
     if args.epochs_per_level is not None:                         # override the schedule
         epochs = {N: int(args.epochs_per_level) for N in levels}
     print(f"  p = {p_fe}")
@@ -255,6 +265,19 @@ def main():
     hist_dir.mkdir(parents=True, exist_ok=True)
     hist_path = hist_dir / f"history_p{p_fe}_seed{args.seed}.csv"
 
+    if args.loss == "ritz":
+        from src.parametric.ritz_loss_2d import make_ritz_denoms_fn, make_val_forward_ritz
+        denoms_fn = make_ritz_denoms_fn(train_sigmas, val_sigmas if val_protocol else None,
+                                        experiment="arctan", p=p_fe, q_K=p_fe + 1, q_F=q_F_use)
+        train_denoms, val_denoms = denoms_fn(int(levels[0]))
+        if val_protocol:
+            val_forward_factory = lambda NN: make_val_forward_ritz(
+                experiment="arctan", p=p_fe, n_elem=int(NN), q_K=p_fe + 1, q_F=q_F_use,
+                epsilon=float(EPSILON_DENOM), solver=str(args.solver))
+        if es_kw:
+            es_kw["es_tol"] = 0.0
+        hist_note = hist_note.replace("loss=eq26", "loss=ritz J/|J_unif| (es_tol=0)")
+        print(f"  [loss=ritz] |J_unif| denominators at N={levels[0]}: median={float(np.median(train_denoms)):.4e}")
     # ---- Train ----
     res = train_with_continuation(
         experiment="arctan",
@@ -288,6 +311,7 @@ def main():
         clip_norm=float(CLIP_NORM),
         warmup_epochs=int(WARMUP_EPOCHS),
         history_header_note=hist_note,
+        loss=str(args.loss),
         **es_kw,
     )
 
@@ -322,6 +346,10 @@ def main():
                                  for i in range(len(res.per_level))}
         meta["best_val_epoch"] = {str(res.levels_done[i]): int(res.per_level[i].best_epoch)
                                   for i in range(len(res.per_level))}
+    from common.resources import hardware_info, peak_rss_mb
+    meta["peak_rss_mb"] = float(peak_rss_mb())
+    meta["hardware"] = hardware_info()
+    meta["loss"] = str(args.loss)
     with open(out_dir / f"meta_train_arctan_seed{args.seed}.json", "w") as f:
         json.dump(meta, f, indent=2)
 

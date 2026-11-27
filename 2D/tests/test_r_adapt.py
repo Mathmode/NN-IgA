@@ -65,22 +65,27 @@ def test_radapt_local_minimises_quadratic():
 
 
 @pytest.mark.slow
-def test_radapt_p3_decreases_ritz_energy():
-    """Run a few L-BFGS iterations and verify the energy decreases relative
-    to the uniform starting point."""
+def test_radapt_p3_decreases_eta_squared():
+    """Run a few L-BFGS iterations and verify the objective of
+    ``radapt_p3_one_sample`` (the residual estimator eta^2, since the Ritz
+    elimination pass) decreases relative to the uniform starting point."""
     from src.nonparametric.r_adapt import p3_effective_n_elem
+    from src.nonparametric.solver_2d import galerkin_solve_lshape
+    from src.nonparametric.eta_estimator_2d import eta_squared_lshape
     n_elem = 8
     p = 2
     sigma1, sigma2 = 0.1, 10.0
     n_eff = p3_effective_n_elem(n_elem, p)
-    # Baseline energy at uniform start.
-    from src.nonparametric.solver_2d import galerkin_solve_lshape
     knots_u = theta_to_knots_lshape(jnp.zeros((4,)), jnp.zeros((4,)), p)
-    j_u = float(
-        galerkin_solve_lshape(
-            knots_u, knots_u, p, n_eff, n_eff,
-            jnp.asarray(sigma1), jnp.asarray(sigma2), q_K=p + 1, q_F=2,
-        ).ritz_energy
+    sol_u = galerkin_solve_lshape(
+        knots_u, knots_u, p, n_eff, n_eff,
+        jnp.asarray(sigma1), jnp.asarray(sigma2), q_K=p + 1, q_F=2,
+    )
+    eta2_u = float(
+        eta_squared_lshape(
+            sol_u.u_h, knots_u, knots_u, p, n_eff, n_eff,
+            jnp.asarray(sigma1), jnp.asarray(sigma2), q_est=2,
+        )
     )
 
     result, _ = radapt_p3_one_sample(
@@ -88,10 +93,9 @@ def test_radapt_p3_decreases_ritz_energy():
     )
     print(
         f"\nP3 radapt sigma=({sigma1}, {sigma2}): "
-        f"uniform J = {j_u:.4e}, optimized J = {result.energy_final:.4e}"
+        f"uniform eta^2 = {eta2_u:.4e}, optimized eta^2 = {result.energy_final:.4e}"
     )
-    # Optimization should reduce (or hold) the energy.
-    assert result.energy_final <= j_u + 1e-10
+    assert result.energy_final <= eta2_u + 1e-10
 
 
 if __name__ == "__main__":  # pragma: no cover

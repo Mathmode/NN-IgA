@@ -303,6 +303,9 @@ def main():
                                  for i in range(len(res.per_level))}
         meta["best_val_epoch"] = {str(res.levels_done[i]): int(res.per_level[i].best_epoch)
                                   for i in range(len(res.per_level))}
+    from common.resources import hardware_info, peak_rss_mb
+    meta["peak_rss_mb"] = float(peak_rss_mb())
+    meta["hardware"] = hardware_info()
     with open(out_dir / f"meta_train_advdiff_seed{args.seed}.json", "w") as f:
         json.dump(meta, f, indent=2)
 

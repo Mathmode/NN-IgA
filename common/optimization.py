@@ -66,17 +66,6 @@ class AdamTrainConfig:
     noise_scale: float = 1e-3
 
 
-def _lr_switch_iter(iters: int, lr_switch: float) -> int:
-    iters = int(iters)
-    s = float(lr_switch)
-    if s < 0:
-        return 0
-    if s <= 1.0:
-        # Match common practice in the repo: `int(frac * iters)` (floor).
-        return int(float(s) * float(iters))
-    return int(round(s))
-
-
 def make_exponential_schedule(*, iters: int, lr_init: float, lr_end: float) -> optax.Schedule:
     """Smooth exponential decay from ``lr_init`` to ``lr_end`` over ``iters`` steps.
 
@@ -95,38 +84,6 @@ def make_exponential_schedule(*, iters: int, lr_init: float, lr_end: float) -> o
         transition_steps=iters,
         decay_rate=decay_rate,
         end_value=lr_end,
-    )
-
-
-def make_two_phase_schedule(*, iters: int, lr1: float, lr2: float, lr_switch: float) -> optax.Schedule:
-    """Piecewise-constant schedule: lr1 for [0,switch), then lr2.
-
-    .. deprecated:: Use :func:`make_exponential_schedule` instead.
-    """
-    switch_it = _lr_switch_iter(int(iters), float(lr_switch))
-    scale = float(lr2) / float(lr1) if float(lr1) != 0.0 else 0.0
-    return optax.piecewise_constant_schedule(init_value=float(lr1), boundaries_and_scales={int(switch_it): scale})
-
-
-def make_three_phase_schedule(
-    *,
-    iters: int,
-    lr1: float,
-    lr2: float,
-    lr3: float,
-    lr_switch1: float,
-    lr_switch2: float,
-) -> optax.Schedule:
-    """Piecewise-constant schedule: lr1 -> lr2 -> lr3."""
-    s1 = _lr_switch_iter(int(iters), float(lr_switch1))
-    s2 = _lr_switch_iter(int(iters), float(lr_switch2))
-    if int(s2) <= int(s1):
-        raise ValueError(f"lr_switch2 must be greater than lr_switch1, got {s1=} {s2=}")
-    scale12 = float(lr2) / float(lr1) if float(lr1) != 0.0 else 0.0
-    scale23 = float(lr3) / float(lr2) if float(lr2) != 0.0 else 0.0
-    return optax.piecewise_constant_schedule(
-        init_value=float(lr1),
-        boundaries_and_scales={int(s1): scale12, int(s2): scale23},
     )
 
 
@@ -254,7 +211,5 @@ __all__ = [
     "residual_loss_from_terms",
     "AdamTrainConfig",
     "make_exponential_schedule",
-    "make_two_phase_schedule",
-    "make_three_phase_schedule",
     "train_adam",
 ]

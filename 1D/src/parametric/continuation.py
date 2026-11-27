@@ -82,6 +82,7 @@ def train_with_continuation(
     init_mode: str = "warmstart",
     epochs_per_level: Optional[int] = None,
     protocol: str = "fixed",
+    loss: str = "eta",
 ) -> ContinuationResult:
     """Run the full coarse-to-fine continuation for one (p, seed).
 
@@ -177,6 +178,7 @@ def train_with_continuation(
             seed=int(seed) * 100 + int(N),
             protocol=str(protocol),
             epochs_override=epochs_per_level,
+            loss=str(loss),
         )
         params = result.params_best
         _trained_any = True

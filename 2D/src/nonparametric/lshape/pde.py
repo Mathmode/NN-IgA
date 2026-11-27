@@ -25,7 +25,7 @@ Ritz energy must be computed numerically):
 This module exposes a JIT-compatible ``sigma_field(x, y, sigma1, sigma2)``
 that returns sigma at any point (x, y) and is differentiable w.r.t.
 ``sigma1`` and ``sigma2``. The discontinuity in ``x``, ``y`` is handled by
-masked indicators (built on ``jnp.heaviside``); the gradient w.r.t. the
+piecewise-constant masks; the gradient w.r.t. the
 parameters is well-defined and smooth across the parameter space.
 """
 from __future__ import annotations
@@ -36,7 +36,6 @@ ensure_double_precision()
 
 import jax.numpy as jnp
 
-from common.dirichlet_masking import step_ge, step_le
 
 Array = jnp.ndarray
 
@@ -58,30 +57,9 @@ def sigma_field(
     y = jnp.asarray(y, dtype=x.dtype)
     s1 = jnp.asarray(sigma1, dtype=x.dtype)
     s2 = jnp.asarray(sigma2, dtype=x.dtype)
-    one = jnp.asarray(1.0, dtype=x.dtype)
+    return jnp.where((x < 0.5) & (y < 0.5), s1,
+                     jnp.where((x > 0.5) & (y > 0.5), s2, jnp.ones_like(x)))
 
-    # Strict half-plane indicators via heaviside, opened on one side.
-    # We use a tiny eps to break ties cleanly at x=0.5 / y=0.5 (which we
-    # avoid by node placement: the fixed nodes at 0.5 form interfaces,
-    # and the cell interior away from those interfaces is what matters).
-    eps = jnp.asarray(1e-12, dtype=x.dtype)
-    x_left = step_le(x, 0.5 - eps)
-    x_right = step_ge(x, 0.5 + eps)
-    y_low = step_le(y, 0.5 - eps)
-    y_high = step_ge(y, 0.5 + eps)
-
-    in_top_left = x_left * y_high
-    in_bottom_left = x_left * y_low
-    in_top_right = x_right * y_high
-    in_bottom_right = x_right * y_low  # removed, but we still must return a value
-
-    # Note: the removed quadrant gets `one` (filler) since its DOFs are
-    # zeroed out post-assembly. Choosing 1 there avoids issues if the
-    # quadrature picks up an unmasked cell in the corner.
-    return (one * in_top_left
-            + s1 * in_bottom_left
-            + s2 * in_top_right
-            + one * in_bottom_right)
 
 
 def f_lshape(x: Array, y: Array) -> Array:

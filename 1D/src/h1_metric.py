@@ -271,37 +271,7 @@ def h1_error_v3_from_state(u_full: Array, cache, *, degree: int,
     )
 
 
-# --------------------------------------------------------------------------
-# Deprecated legacy stub — kept for API compatibility, redirects to v3.
-# --------------------------------------------------------------------------
-
-
-def h1_error_legacy_from_state(u_full: Array, cache, *, degree: int,
-                                 beta: float = BETA) -> H1Errors:
-    """DEPRECATED.  Old analytic-subtraction H¹ metric.
-
-    The original implementation suffered catastrophic cancellation
-    when ``u_h ≈ u^*``, inflating ``H¹_rel`` by 100x–2000x for
-    accurate IGA solutions.  This function now redirects to
-    ``h1_error_v3_from_state``.
-
-    Old numerical values are NOT reproducible from this function;
-    consult git history (commits before this fix) if you need to
-    reproduce a pre-fix v1/v2 CSV.
-    """
-    import warnings
-    warnings.warn(
-        "h1_error_legacy_from_state is deprecated; the cancellation bug "
-        "made its results unreliable.  Now redirects to "
-        "h1_error_v3_from_state.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return h1_error_v3_from_state(u_full, cache, degree=degree, beta=beta)
-
-
 __all__ = [
     "H1Errors",
     "h1_error_v3_from_state",
-    "h1_error_legacy_from_state",
 ]

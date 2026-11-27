@@ -1,0 +1,38 @@
+{
+  "experiment": "adr",
+  "p": 3,
+  "seed": 2,
+  "smoke": false,
+  "levels": [
+    8,
+    16,
+    32,
+    64
+  ],
+  "eval_levels": [
+    8,
+    16,
+    32,
+    64,
+    128
+  ],
+  "n_train": 140,
+  "n_val": 30,
+  "n_test": 30,
+  "split_seed": 20240601,
+  "T": 5.0,
+  "h_min": 1e-07,
+  "training_elapsed_sec": 127.73388593876734,
+  "eval_elapsed_sec": 10.829776261001825,
+  "elapsed_sec": 139.1879037981853,
+  "peak_rss_mb": 936.30078125,
+  "hardware": {
+    "platform": "Linux-4.18.0-553.146.1.el8_10.x86_64-x86_64-with-glibc2.28",
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "cpu_count": 64,
+    "slurm_cpus": "4",
+    "host": "hyperion-277",
+    "cpu_model": "Intel(R) Xeon(R) Platinum 8362 CPU @ 2.80GHz"
+  }
+}

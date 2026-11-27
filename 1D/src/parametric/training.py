@@ -188,6 +188,7 @@ def train_at_level(
     seed: int,
     protocol: str = "fixed",
     epochs_override: Optional[int] = None,
+    loss: str = "eta",
 ) -> LevelTrainResult:
     """One continuation pass at level (p, N), monitoring VALIDATION η².
 
@@ -200,9 +201,21 @@ def train_at_level(
     exponential LR schedule 1e-2 -> 1e-4 over the max_epochs horizon, batch 16,
     and relative-1% / patience-40 / min-40 / cap-400 early stopping on the
     val η² (no warm restarts). Both paths checkpoint the best-val params.
+
+    loss="eta" (default) is the eq-26 estimator loss. loss="ritz" (revision v2
+    ablation) replaces each per-sample term by J(u_h)/|J(u_h,unif)| with the
+    Ritz energy J = -1/2 F^T U; denominators, validation loss and early
+    stopping then use the same Ritz quantity. The Ritz loss is
+    -1 + O(e^2/e_unif^2), so a relative tolerance cannot see the late gains:
+    the val protocol uses tol = 0 for it (any decrease counts).
     """
     h_min = float(H_MIN_SCHEDULE[int(p)][int(N)])
-    per_beta_loss = _make_per_beta_loss(int(p), int(N), h_min)
+    if str(loss) == "ritz":
+        from src.parametric.ritz_loss import (
+            make_per_beta_ritz_loss, make_uniform_ritz_fn, make_val_forward_ritz)
+        per_beta_loss = make_per_beta_ritz_loss(int(p), int(N), h_min)
+    else:
+        per_beta_loss = _make_per_beta_loss(int(p), int(N), h_min)
     batched_loss = jax.jit(lambda params, betas, denoms: _batched_loss(
         params, betas, denoms, per_beta_loss))
     loss_and_grad = jax.jit(jax.value_and_grad(batched_loss))
@@ -213,15 +226,16 @@ def train_at_level(
 
     # Eq-26 denominators at THIS level: η²(θ_unif^{(N)}; β) for train + val,
     # recomputed at every level (config.LOSS_NORM == "uniform_same_level").
-    unif_fn = make_uniform_eta2_fn(int(p), int(N), h_min)
+    ritz = str(loss) == "ritz"
+    unif_fn = (make_uniform_ritz_fn if ritz else make_uniform_eta2_fn)(int(p), int(N), h_min)
     train_denoms = np.asarray(unif_fn(jnp.asarray(train_betas, dtype=DEFAULT_DTYPE)))
     val_denoms = np.asarray(unif_fn(jnp.asarray(val_betas, dtype=DEFAULT_DTYPE)))
-    print(f"  [singular eq26] η²_unif at N={int(N)}: train median="
+    print(f"  [singular {'ritz' if ritz else 'eq26'}] {'|J_unif|' if ritz else 'η²_unif'} at N={int(N)}: train median="
           f"{float(np.median(train_denoms)):.4e}, val median="
           f"{float(np.median(val_denoms)):.4e} (recomputed per level)", flush=True)
     # Combined val forward: one solve per β → (eq-26 term, rel H¹-seminorm
     # error vs the exact x^β) for the h1_rel_val_median history column.
-    val_forward = make_val_forward(int(p), int(N), h_min)
+    val_forward = (make_val_forward_ritz if ritz else make_val_forward)(int(p), int(N), h_min)
     val_betas_j = jnp.asarray(val_betas, dtype=DEFAULT_DTYPE)
     val_denoms_j = jnp.asarray(val_denoms, dtype=DEFAULT_DTYPE)
 
@@ -233,7 +247,7 @@ def train_at_level(
         max_epochs = int(VAL["max_epochs"])        # type: ignore[index]
         patience = int(VAL["patience"])            # type: ignore[index]
         min_epochs = int(VAL["min_epochs"])        # type: ignore[index]
-        tol = float(VAL["tol"])                    # type: ignore[index]
+        tol = 0.0 if ritz else float(VAL["tol"])   # type: ignore[index]
         max_restarts = 0
         nb = max(n_train // bs, 1)
         lr_init = float(VAL["lr_init"]); lr_end = float(VAL["lr_end"])   # type: ignore[index]
@@ -311,7 +325,8 @@ def train_at_level(
         h1_rel_val_median = float(jnp.median(h1_v))
         elapsed = time.perf_counter() - t0
         # Improvement: relative > tol (val protocol) or absolute (legacy).
-        is_best = (val_loss < best_val * (1.0 - tol)) if val_protocol else (val_loss < best_val)
+        threshold = best_val - tol * abs(best_val) if np.isfinite(best_val) else best_val
+        is_best = (val_loss < threshold) if val_protocol else (val_loss < best_val)
         if is_best:
             best_val = val_loss
             best_params = jax.tree_util.tree_map(lambda x: x, params)

@@ -59,7 +59,7 @@ def theta_to_knots_arctan(theta: Array, p: int) -> Array:
     return jnp.concatenate([zeros, interior, ones])
 
 
-def theta_to_knots_lshape(theta_left: Array, theta_right: Array, p: int) -> Array:
+def theta_to_knots_lshape(theta_left: Array, theta_right: Array, p: int, *, h_min: float = 0.0) -> Array:
     """Knot vector for lshape: two sub-meshes joined at 0.5, with multiplicity p+1
     at both endpoints (0 and 1) and **multiplicity p at the material
     interface 0.5** so the IGA basis is ``C^0`` there.
@@ -81,8 +81,9 @@ def theta_to_knots_lshape(theta_left: Array, theta_right: Array, p: int) -> Arra
     where N is the logical mesh size (= number of physical elements per
     axis).
     """
-    sizes_l = softmax_jax(theta_left) * 0.5    # rescale to fit [0, 0.5]
-    sizes_r = softmax_jax(theta_right) * 0.5
+    budget = 0.5 - theta_left.size * h_min
+    sizes_l = h_min + softmax_jax(theta_left) * budget
+    sizes_r = h_min + softmax_jax(theta_right) * budget
     interior_l = jnp.cumsum(sizes_l)[:-1]                  # in (0, 0.5)
     interior_r = jnp.asarray(0.5, dtype=sizes_l.dtype) + jnp.cumsum(sizes_r)[:-1]
     # Multiplicity p at 0.5 → C^0 at the σ-discontinuity.

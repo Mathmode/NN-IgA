@@ -11,10 +11,12 @@ attempting an exact historical rerun. In particular, the documented historical
 | Singular power, 1D | `1D/scripts/train_singular.py` | `1D/scripts/eval_singular.py` |
 | Transmission Helmholtz, 1D | `1D/scripts/train_helmholtz.py` | `1D/scripts/eval_helmholtz.py` |
 | Arctangent layer, 2D | `2D/scripts/train_arctan.py` | `2D/scripts/eval_arctan.py` |
-| Immersed L-shape, 2D | `2D/scripts/train_lshape.py` | `2D/scripts/eval_lshape.py` |
+| Conforming L-shape, 2D | `2D/scripts/train_lshape.py` | `2D/scripts/lshape_phase_e_eval.py` |
 | Advection–diffusion, 2D | `2D/scripts/train_advdiff.py` | `2D/scripts/eval_advdiff.py` |
+| Advection–diffusion–reaction, 1D | `1D/scripts/train_adr.py` | Included in the training driver |
 
-Each training entry accepts `--protocol val --p 2 --seed 0`; use degree 2 or 3 and
+The Experiment 6 driver accepts `--p 2 --seed 0` and an optional `--smoke`.
+For the original five families, each training entry accepts `--protocol val --p 2 --seed 0`; use degree 2 or 3 and
 seeds 0 through 3 for the research protocol. Inspect `--help` for checkpoint,
 output, mesh-level and optional solver arguments. These are full runs, not smoke
 checks. No convergence rates or historical training results were re-established
@@ -29,9 +31,11 @@ python 1D/scripts/eval_helmholtz.py --p 2 --seed 0 \
   --N-levels 32 --max-cs 1 --output-dir outputs/helmholtz_smoke
 ```
 
-For L-shape evaluation, the included cache can be supplied with
-`--iga-ref-cache references/reference_lshape.pkl`. The reference is an immersed
-IGA comparison solution; no universal error bound is claimed here.
+The revised L-shape runs use [the phase E job script](slurm_v3/lshape_phase_e.sbatch),
+the independent [hp-FEM reference](references_v3/lshape_energy_ngsolve.csv)
+and [the V1 policy](data_results_v3/lshape/v1_policy.csv). The legacy
+`references/reference_lshape.pkl` has a known Dirichlet boundary defect.
+Use the independent energy reference to reproduce the revised tables.
 
 The preserved Slurm scripts are optional templates: activate the desired Python
 environment, create the log directory before submission, and supply your own
@@ -39,6 +43,8 @@ account/partition to `sbatch`. They retain historical numerical flags and resour
 requests. Slurm submission was not tested.
 
 Additional implementations include nonparametric comparisons
-(`scripts/compare_nonparametric_1d.py`, `scripts/compare_nonparametric_2d.py`),
-Helmholtz extrapolation/denominator studies and the arctan FDM solver. These
-variants are not interchangeable with the five historical table pipelines.
+(`scripts/compare_nonparametric_1d.py`, `scripts/compare_nonparametric_2d.py`)
+and the arctan FDM solver (`--solver fdm`). These variants are not
+interchangeable with the five historical table pipelines. The Helmholtz
+contrast-extrapolation and loss-denominator side studies are archived in
+`archive/helmholtz_side_studies/` (their data stay in `data_results/`).

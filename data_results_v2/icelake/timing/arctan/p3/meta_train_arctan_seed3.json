@@ -1,0 +1,61 @@
+{
+  "seed": 3,
+  "smoke": false,
+  "protocol": "val",
+  "levels": [
+    4,
+    8,
+    16,
+    32
+  ],
+  "epochs_per_level": {
+    "4": 400,
+    "8": 400,
+    "16": 400,
+    "32": 400
+  },
+  "epochs_used": {
+    "4": 222,
+    "8": 201,
+    "16": 228,
+    "32": 162
+  },
+  "stop_reasons": {
+    "4": "plateau",
+    "8": "plateau",
+    "16": "plateau",
+    "32": "plateau"
+  },
+  "batch_size": 16,
+  "lr_init": 0.001,
+  "lr_end": 0.0001,
+  "split_seed": 20240601,
+  "n_train": 1400,
+  "n_val": 300,
+  "n_test": 300,
+  "elapsed_sec": 70704.879769534,
+  "final_loss": 0.013895426794650199,
+  "best_val_eta2": {
+    "4": 0.22852125935432693,
+    "8": 0.054948070247932516,
+    "16": 0.04015277575157579,
+    "32": 0.03684161032099172
+  },
+  "best_val_epoch": {
+    "4": 181,
+    "8": 160,
+    "16": 187,
+    "32": 121
+  },
+  "peak_rss_mb": 42938.60546875,
+  "hardware": {
+    "platform": "Linux-4.18.0-553.146.1.el8_10.x86_64-x86_64-with-glibc2.28",
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "cpu_count": 64,
+    "slurm_cpus": "4",
+    "host": "hyperion-271",
+    "cpu_model": "Intel(R) Xeon(R) Platinum 8362 CPU @ 2.80GHz"
+  },
+  "loss": "eta"
+}

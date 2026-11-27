@@ -27,12 +27,10 @@ substitution under the assumption that the Dirichlet value is 0).
 JIT path
 --------
 Every shape is static (compile-time), so the entire assembly+solve is
-JIT-compilable. The differentiation path follows the standard adjoint
-form (no custom_vjp needed at this stage; ``jnp.linalg.solve`` provides
-the gradient automatically).
-
-For the smoke-level work (N <= 10) the dense solve is fine. The cluster
-must switch to sparse (BCOO + CG) before scaling to N = 64.
+JIT-compilable. The linear solve is ``common.solver_custom_vjp_2d.solve_system_2d``
+(dense Cholesky with an explicit discrete-adjoint ``custom_vjp``). An exact
+fast-diagonalization (Kronecker) variant for the arctan case lives in
+``solver_2d_fdm`` (``--solver fdm``).
 """
 from __future__ import annotations
 
@@ -277,37 +275,11 @@ def free_mask_arctan(knots_x: Array, knots_y: Array, p: int) -> Array:
 
 
 def free_mask_lshape(knots_x: Array, knots_y: Array, p: int) -> Array:
-    """lshape Dirichlet: u = 0 on the external boundary AND on the removed
-    quadrant (greville at x>=0.5 AND y<=0.5).
-
-    Returns shape (n_x, n_y) with 1 = free, 0 = constrained.
-    """
-    from common.dirichlet_masking import lshape_removed_quadrant_mask
-
-    gx = greville_abscissae(knots_x, p)
-    gy = greville_abscissae(knots_y, p)
-    # Collapse the ~1-ULP XLA-fusion drift of the x=0.5 / y=0.5 interface
-    # Greville (the p-fold mean of 0.5 drifts <1e-15 below 0.5 under fusion for
-    # p>=3, flipping step_ge(0.5,0.5) and un-constraining the reentrant row).
-    # A literal-0.5 snap is fusion-stable; jnp.round is NOT (the /1e12 returns
-    # the drift). Window 1e-9 sits between the ~1e-16 drift and the nearest
-    # legitimate interface Greville ~3e-8 (even at h_min=1e-7). p=2 unaffected.
-    gx = jnp.where(jnp.abs(gx - 0.5) < 1e-9, jnp.asarray(0.5, gx.dtype), gx)
-    gy = jnp.where(jnp.abs(gy - 0.5) < 1e-9, jnp.asarray(0.5, gy.dtype), gy)
-    XX, YY = jnp.meshgrid(gx, gy, indexing="ij")
-    removed = lshape_removed_quadrant_mask(XX, YY)
-
-    n_x = int(knots_x.shape[0] - p - 1)
-    n_y = int(knots_y.shape[0] - p - 1)
-    free = jnp.ones((n_x, n_y), dtype=DEFAULT_DTYPE)
-    # External boundary: rows/cols 0 and n-1.
-    free = free.at[0, :].set(0.0)
-    free = free.at[-1, :].set(0.0)
-    free = free.at[:, 0].set(0.0)
-    free = free.at[:, -1].set(0.0)
-    # Removed-quadrant Greville: union with external.
-    free = free * (jnp.asarray(1.0, dtype=DEFAULT_DTYPE) - removed)
-    return free
+    right_support = knots_x[p + 1:] > 0.5
+    lower_support = knots_y[:-(p + 1)] < 0.5
+    free = jnp.asarray(~(right_support[:, None] & lower_support[None, :]), dtype=DEFAULT_DTYPE)
+    free = free.at[0, :].set(0).at[-1, :].set(0)
+    return free.at[:, 0].set(0).at[:, -1].set(0)
 
 
 # --------------------------------------------------------------------------
@@ -425,23 +397,16 @@ def galerkin_solve_lshape(
     sigma piecewise constant, f = 1, Dirichlet u = 0 on external boundary
     AND inside the removed quadrant.
     """
-    from src.nonparametric.lshape.pde import f_lshape, sigma_field
+    from src.nonparametric.lshape.integration import assemble, ritz
 
-    sigma_callable = lambda x, y: sigma_field(x, y, sigma1, sigma2)
-    f_callable = lambda x, y: f_lshape(x, y)
-    K, F = _assemble_2d(
-        knots_x, knots_y, p, n_elem_x, n_elem_y,
-        sigma_callable, f_callable, q_K, q_F,
-    )
-
+    K, F = assemble(knots_x, knots_y, p, sigma1, sigma2, q_K, q_F)
     free = free_mask_lshape(knots_x, knots_y, p)
     K, F = _apply_dirichlet(K, F, free.reshape(-1))
 
     u = solve_system_2d(K, F)
-    ritz_energy = 0.5 * u @ K @ u - u @ F
-
     n_x = n_elem_x + p
     n_y = n_elem_y + p
+    ritz_energy = ritz(u.reshape(n_x, n_y), knots_x, knots_y, p, sigma1, sigma2, q_K, q_F)
     return Solve2DResult(
         u_h=u.reshape(n_x, n_y),
         ritz_energy=ritz_energy,

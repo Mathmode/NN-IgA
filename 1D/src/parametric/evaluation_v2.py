@@ -1,6 +1,6 @@
 """Evaluation v2 — enriched CSV schema (unification target).
 
-Extends `evaluation.py` with 26 new columns (multistart_* removed per
+Extends the v1 summary schema (``SUMMARY_FIELDNAMES_V1``) with 26 new columns (multistart_* removed per
 decision 7; eff_index added per decision 7-F; H1_semi_abs / H1_semi_rel
 added so the effectivity index uses the dimensionally correct
 H¹-seminorm denominator).
@@ -73,15 +73,25 @@ from src.parametric.corrector_v2 import (
     CorrectorV2Result,
     correct_lbfgsb_v2,
 )
-from src.parametric.evaluation import (
-    SUMMARY_FIELDNAMES as SUMMARY_FIELDNAMES_V1,
-)
 from src.parametric.positional_density_network import (
     PDNParams,
     cell_xi,
     forward_scalar,
     gauge_fix,
     saturate,
+)
+
+
+SUMMARY_FIELDNAMES_V1: Tuple[str, ...] = (
+    "p", "N", "beta", "seed", "method",
+    "T", "h_min",
+    "iters", "corrector_iters", "corrector_status",
+    "eta", "eta_rel", "eta_norm",
+    "H1_abs", "H1_rel", "I_eff",
+    "mesh_h_min", "mesh_max_h", "mesh_ratio",
+    "hmin_active", "saturated_frac", "logit_max_abs",
+    "oscillation", "grad_norm_final",
+    "runtime_sec",
 )
 
 
@@ -599,6 +609,7 @@ def evaluate_test_split_v2(
 
 
 __all__ = [
+    "SUMMARY_FIELDNAMES_V1",
     "SUMMARY_V2_FIELDNAMES",
     "V2_NEW_FIELDS",
     "calibrate_tau_global",

@@ -1,41 +1,26 @@
-"""Evaluation routines for trained positional density network.
+"""Visualization data for the trained positional density network (Exp. 1).
 
-Produces:
-- ``evaluate_test_split``  -> rows for `summary.csv`
-- ``evaluate_viz_set``     -> writes breakpoints/greville/knots/solution/d2u CSVs
-
-For each (p, N, beta, method) we report:
-- T (saturation cap), h_min,
-- iters / corrector_iters / corrector_status,
-- eta, eta_rel, eta_norm,
-- H1_abs, H1_rel, I_eff,
-- mesh_h_min, mesh_max_h, mesh_ratio,
-- hmin_active, saturated_frac, logit_max_abs,
-- oscillation, grad_norm_final,
-- runtime_sec.
+``evaluate_viz_set`` writes the breakpoints/greville/knots/solution/d2u CSVs
+used by the figures. The test-split summary rows are produced by
+``evaluation_v2.evaluate_test_split_v2``.
 
 `method` is one of {"uniform", "positional", "positional_corrected"}.
 
 Memory-bounded design
 ---------------------
-Both ``evaluate_test_split`` and ``evaluate_viz_set`` accept a
-``clear_caches_between_levels`` flag (default True) that calls
-``jax.clear_caches()`` + ``gc.collect()`` after each refinement level N.
-This prevents the JAX compilation cache from growing unbounded as the
-shapes change with N.
-
-Both also support incremental CSV writes — the file is appended to after
-every level so a killed job leaves a partial-but-valid CSV that can be
-inspected (or, with ``eval_singular.py``, re-run from the saved checkpoint).
+``evaluate_viz_set`` accepts a ``clear_caches_between_levels`` flag (default
+True) that calls ``jax.clear_caches()`` + ``gc.collect()`` after each
+refinement level N. This prevents the JAX compilation cache from growing
+unbounded as the shapes change with N. Each CSV is appended to after every
+level so a killed job leaves partial-but-valid files.
 """
 from __future__ import annotations
 
 import gc
-import math
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Tuple
 
 from common._precision import DEFAULT_DTYPE, ensure_double_precision
 
@@ -61,44 +46,24 @@ from src.nonparametric.discretization import (
 from src.nonparametric.knots import (
     breakpoints_from_knots,
     theta_to_knots,
-    theta_to_sizes,
 )
-from src.nonparametric.metrics import diagnostic_metrics_from_state
 from src.nonparametric.pde import (
     d2u_exact_power,
     u_exact_power,
 )
-from src.nonparametric.quadrature_analytic import (
-    reduced_loss,
-    residual_loss_terms_from_state,
+from src.parametric.corrector_v2 import correct_lbfgsb_v2
+from src.parametric.evaluation_v2 import (
+    _eta_from_theta,
+    _theta_positional,
+    _theta_uniform,
 )
-from src.nonparametric.r_adapt import normalized_residual_estimator
-from src.parametric.corrector import correct_lbfgsb
-from src.parametric.positional_density_network import (
-    PDNParams,
-    cell_xi,
-    forward_scalar,
-    gauge_fix,
-    saturate,
-)
+from src.parametric.positional_density_network import PDNParams
 
 
 # -----------------------------------------------------------------------------
 # Field-name constants (the canonical CSV schemas)
 # -----------------------------------------------------------------------------
 
-
-SUMMARY_FIELDNAMES: Tuple[str, ...] = (
-    "p", "N", "beta", "seed", "method",
-    "T", "h_min",
-    "iters", "corrector_iters", "corrector_status",
-    "eta", "eta_rel", "eta_norm",
-    "H1_abs", "H1_rel", "I_eff",
-    "mesh_h_min", "mesh_max_h", "mesh_ratio",
-    "hmin_active", "saturated_frac", "logit_max_abs",
-    "oscillation", "grad_norm_final",
-    "runtime_sec",
-)
 
 VIZ_FIELDNAMES: Dict[str, Tuple[str, ...]] = {
     "breakpoints": ("p", "N", "beta", "method", "breakpoint_index", "x_value"),
@@ -108,249 +73,6 @@ VIZ_FIELDNAMES: Dict[str, Tuple[str, ...]] = {
     "solution": ("p", "N", "beta", "method", "x_eval", "u_exact", "u_h"),
     "second_derivative": ("p", "N", "beta", "method", "x_eval", "u_exact_dd", "u_h_dd"),
 }
-
-
-# -----------------------------------------------------------------------------
-# Single-sample evaluator: returns one summary-row dict
-# -----------------------------------------------------------------------------
-
-
-def _hmin_active(sizes_np: np.ndarray, h_min: float, *, slack: float = 1.05) -> int:
-    """1 if any cell is at or below slack * h_min."""
-    return int(bool(np.any(sizes_np <= slack * float(h_min))))
-
-
-def _saturated_fraction(theta_np: np.ndarray, T: float, *, frac: float = 0.99) -> float:
-    return float(np.mean(np.abs(theta_np) >= frac * float(T)))
-
-
-def _full_h1_metrics(theta, *, p: int, h_min: float, beta: float) -> Tuple[float, float, float, float, float]:
-    """Compute eta_residual, eta_rel, H1_abs, H1_rel, oscillation for one theta."""
-    q_order = stiffness_quadrature_order(int(p))
-    u_full, cache = solve_state(theta, int(p), int(q_order), float(h_min), float(beta))
-    loss_terms = residual_loss_terms_from_state(u_full, cache, int(p), float(beta))
-    diag = diagnostic_metrics_from_state(u_full, cache, int(p), float(beta))
-    eta_residual = float(jnp.sqrt(jnp.maximum(2.0 * loss_terms.total_loss, 0.0)))
-    eta_rel = float(normalized_residual_estimator(jnp.asarray(eta_residual), beta=float(beta)))
-    h1_abs = float(diag.err_full_h1_abs)
-    h1_rel = float(diag.err_full_h1_rel)
-    osc_abs = float(diag.osc_abs)
-    return eta_residual, eta_rel, h1_abs, h1_rel, osc_abs
-
-
-def _grad_norm_final(theta, *, p: int, h_min: float, beta: float) -> float:
-    q_order = stiffness_quadrature_order(int(p))
-    g = jax.grad(lambda th: reduced_loss(th, int(p), int(q_order), float(h_min), beta=float(beta)))(
-        jnp.asarray(theta, dtype=DEFAULT_DTYPE)
-    )
-    return float(jnp.linalg.norm(g))
-
-
-def _theta_uniform(N: int) -> jnp.ndarray:
-    """Uniform mesh: all logits zero -> sizes = 1/N."""
-    return jnp.zeros((int(N),), dtype=DEFAULT_DTYPE)
-
-
-def _theta_positional(params: PDNParams, beta: float, *, p: int, N: int) -> jnp.ndarray:
-    xi = cell_xi(int(N))
-    z = forward_scalar(params, beta, xi, int(N))
-    z = gauge_fix(z)
-    T = float(T_SCHEDULE[int(p)][int(N)])
-    return saturate(z, T)
-
-
-def _summary_row(
-    *,
-    p: int,
-    N: int,
-    beta: float,
-    seed: int,
-    method: str,
-    T: float,
-    h_min: float,
-    iters: int,
-    corrector_iters: int,
-    corrector_status: str,
-    theta: jnp.ndarray,
-) -> Dict[str, object]:
-    eta, eta_rel, h1_abs, h1_rel, osc = _full_h1_metrics(theta, p=p, h_min=h_min, beta=beta)
-    grad_norm = _grad_norm_final(theta, p=p, h_min=h_min, beta=beta)
-
-    sizes = np.asarray(jax.device_get(theta_to_sizes(theta, float(h_min))), dtype=np.float64)
-    theta_np = np.asarray(jax.device_get(theta), dtype=np.float64).reshape(-1)
-    h_min_obs = float(np.min(sizes))
-    h_max_obs = float(np.max(sizes))
-    ratio = h_max_obs / max(h_min_obs, 1e-300)
-
-    i_eff = float("nan") if h1_abs <= 0.0 else float(eta / h1_abs)
-    eta_norm_denom = math.sqrt(max(eta * eta + osc * osc, 0.0))
-    eta_norm = float("nan") if eta_norm_denom <= 0.0 else float(eta / eta_norm_denom)
-
-    return {
-        "p": int(p),
-        "N": int(N),
-        "beta": float(beta),
-        "seed": int(seed),
-        "method": str(method),
-        "T": float(T),
-        "h_min": float(h_min),
-        "iters": int(iters),
-        "corrector_iters": int(corrector_iters),
-        "corrector_status": str(corrector_status),
-        "eta": float(eta),
-        "eta_rel": float(eta_rel),
-        "eta_norm": float(eta_norm),
-        "H1_abs": float(h1_abs),
-        "H1_rel": float(h1_rel),
-        "I_eff": float(i_eff),
-        "mesh_h_min": float(h_min_obs),
-        "mesh_max_h": float(h_max_obs),
-        "mesh_ratio": float(ratio),
-        "hmin_active": int(_hmin_active(sizes, float(h_min))),
-        "saturated_frac": float(_saturated_fraction(theta_np, float(T))),
-        "logit_max_abs": float(np.max(np.abs(theta_np))),
-        "oscillation": float(osc),
-        "grad_norm_final": float(grad_norm),
-    }
-
-
-def evaluate_one(
-    params: PDNParams,
-    *,
-    p: int,
-    N: int,
-    beta: float,
-    seed: int,
-    run_corrector: bool = True,
-) -> List[Dict[str, object]]:
-    """uniform + positional rows, plus positional_corrected only when
-    ``run_corrector`` is True (corrector-free release sets it False — the
-    L-BFGS-B corrector is then never called)."""
-    h_min = float(H_MIN_SCHEDULE[int(p)][int(N)])
-    T = float(T_SCHEDULE[int(p)][int(N)])
-    rows: List[Dict[str, object]] = []
-
-    # 1) Uniform baseline
-    t0 = time.perf_counter()
-    theta_u = _theta_uniform(int(N))
-    row_u = _summary_row(
-        p=p, N=N, beta=beta, seed=seed, method="uniform",
-        T=T, h_min=h_min, iters=0, corrector_iters=0, corrector_status="",
-        theta=theta_u,
-    )
-    row_u["runtime_sec"] = float(time.perf_counter() - t0)
-    rows.append(row_u)
-
-    # 2) Positional warm-start (no correction)
-    t0 = time.perf_counter()
-    theta_pos = _theta_positional(params, float(beta), p=int(p), N=int(N))
-    row_pos = _summary_row(
-        p=p, N=N, beta=beta, seed=seed, method="positional",
-        T=T, h_min=h_min, iters=0, corrector_iters=0, corrector_status="",
-        theta=theta_pos,
-    )
-    row_pos["runtime_sec"] = float(time.perf_counter() - t0)
-    rows.append(row_pos)
-
-    # 3) Positional + corrector. Skipped entirely when run_corrector is False
-    # (corrector-free release): correct_lbfgsb is the slow L-BFGS-B bottleneck.
-    if run_corrector:
-        t0 = time.perf_counter()
-        eta_init = float(row_pos["eta"])
-        res = correct_lbfgsb(
-            theta_pos, p=int(p), N=int(N), h_min=h_min, beta=float(beta),
-            T=T, eta_init=eta_init, eta_target=eta_init,
-        )
-        row_corr = _summary_row(
-            p=p, N=N, beta=beta, seed=seed, method="positional_corrected",
-            T=T, h_min=h_min, iters=0, corrector_iters=int(res.iters),
-            corrector_status=res.status, theta=res.theta,
-        )
-        row_corr["runtime_sec"] = float(time.perf_counter() - t0)
-        rows.append(row_corr)
-
-    return rows
-
-
-def evaluate_test_split(
-    params: PDNParams,
-    *,
-    p: int,
-    seed: int,
-    test_betas: np.ndarray,
-    eval_levels: Iterable[int] = EVAL_LEVELS,
-    incremental_csv_path: Optional[Path] = None,
-    clear_caches_between_levels: bool = True,
-    verbose: bool = True,
-    run_corrector: bool = True,
-) -> List[Dict[str, object]]:
-    """Loop over (N, beta) and produce summary rows.
-
-    Parameters
-    ----------
-    run_corrector : bool, default True
-        When False (corrector-free release, consistent with the 2D CORR=0
-        default), the L-BFGS-B corrector is never called and only the
-        uniform + positional rows are produced.
-    incremental_csv_path : Path, optional
-        If given, append the rows of every level to this CSV file as soon as
-        the level finishes. The header is written on the first call (the file
-        is wiped first if it already exists). A killed job leaves a
-        partial-but-valid CSV.
-    clear_caches_between_levels : bool, default True
-        After each level, call ``jax.clear_caches()`` and ``gc.collect()``.
-        Required to keep memory bounded — without it the JAX compilation
-        cache grows monotonically as N changes between levels.
-    verbose : bool, default True
-        Print per-level progress with timestamps. All prints use ``flush=True``
-        so they appear in SLURM logs in real time.
-    """
-    test_betas = np.asarray(test_betas, dtype=np.float64).reshape(-1)
-    eval_levels = tuple(int(N) for N in eval_levels)
-    methods = (("uniform", "positional", "positional_corrected")
-               if run_corrector else ("uniform", "positional"))
-
-    # Wipe any stale CSV so the first append writes the header.
-    if incremental_csv_path is not None:
-        incremental_csv_path = Path(incremental_csv_path)
-        if incremental_csv_path.exists():
-            incremental_csv_path.unlink()
-
-    all_rows: List[Dict[str, object]] = []
-    n_betas = int(test_betas.shape[0])
-    n_methods = len(methods)
-
-    for N in eval_levels:
-        if verbose:
-            print(
-                f"  [eval] N={N} start; processing {n_betas} betas x {n_methods} methods",
-                flush=True,
-            )
-        t0 = time.perf_counter()
-        rows_for_this_N: List[Dict[str, object]] = []
-        for b in test_betas:
-            rows = evaluate_one(params, p=int(p), N=int(N), beta=float(b), seed=int(seed),
-                                run_corrector=run_corrector)
-            rows_for_this_N.extend(rows)
-
-        if incremental_csv_path is not None:
-            append_csv_dicts(incremental_csv_path, rows_for_this_N, list(SUMMARY_FIELDNAMES))
-
-        all_rows.extend(rows_for_this_N)
-        elapsed = time.perf_counter() - t0
-        if verbose:
-            print(
-                f"  [eval] N={N} done in {elapsed:.1f}s ({len(rows_for_this_N)} rows)",
-                flush=True,
-            )
-
-        if clear_caches_between_levels:
-            jax.clear_caches()
-            gc.collect()
-            if verbose:
-                print(f"  [eval] cleared JAX caches after N={N}", flush=True)
-
-    return all_rows
 
 
 # -----------------------------------------------------------------------------
@@ -477,10 +199,10 @@ def _theta_for_method(method: str, params: PDNParams, *, p: int, N: int, beta: f
     if method == "positional_corrected":
         theta_pos = _theta_positional(params, float(beta), p=int(p), N=int(N))
         T = float(T_SCHEDULE[int(p)][int(N)])
-        eta_init, *_ = _full_h1_metrics(theta_pos, p=int(p), h_min=float(h_min), beta=float(beta))
-        res = correct_lbfgsb(
+        eta_init = _eta_from_theta(theta_pos, p=int(p), h_min=float(h_min), beta=float(beta))
+        res = correct_lbfgsb_v2(
             theta_pos, p=int(p), N=int(N), h_min=float(h_min), beta=float(beta),
-            T=T, eta_init=float(eta_init), eta_target=float(eta_init),
+            T=T, eta_init_for_gate=float(eta_init), record_history=False,
         )
         return res.theta
     raise ValueError(f"Unknown method {method!r}")
@@ -506,7 +228,7 @@ def evaluate_viz_set(
       - solution     (u_exact, u_h on a 1000-pt grid)
       - second_derivative (d2u_exact, d2u_h on the same grid)
 
-    Memory-bounded: like ``evaluate_test_split``, this clears the JAX
+    Memory-bounded: like ``evaluate_test_split_v2``, this clears the JAX
     cache after every refinement level. Each file is appended to per
     level so a killed job leaves valid partial files.
 
@@ -636,10 +358,7 @@ def evaluate_viz_set(
 
 
 __all__ = [
-    "SUMMARY_FIELDNAMES",
     "VIZ_FIELDNAMES",
-    "evaluate_one",
-    "evaluate_test_split",
     "evaluate_viz_set",
     "VizData",
 ]

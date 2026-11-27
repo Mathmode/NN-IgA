@@ -112,6 +112,7 @@ class TrainConfig:
     # re-initialised per level, so the warmup also restarts per level).
     clip_norm: float = 1.0        # config.CLIP_NORM
     warmup_epochs: int = 2        # config.WARMUP_EPOCHS
+    val_loss_scale: float = 0.5
 
 
 @dataclass
@@ -372,8 +373,13 @@ def _es_is_improvement(loss: float, best: float, tol: float) -> bool:
     """An epoch counts as an improvement only if ``loss`` drops by more than
     ``tol`` (relative) versus the best-so-far ``best`` (decision: monitor the
     per-epoch mean training loss). With ``best = inf`` the first finite loss is
-    always an improvement."""
-    return float(loss) < float(best) * (1.0 - float(tol))
+    always an improvement. The bar is ``best - tol*|best|``, which equals
+    ``best*(1 - tol)`` for the positive estimator losses and stays correct for
+    the negative Ritz loss of the revision-v2 ablation."""
+    best = float(best)
+    if not np.isfinite(best):
+        return float(loss) < best
+    return float(loss) < best - float(tol) * abs(best)
 
 
 def _es_should_stop(epoch: int, best_epoch: int, *, min_epochs: int, patience: int) -> bool:
@@ -448,13 +454,12 @@ def _params_to_host(params: PDN2DParams) -> PDN2DParams:
     """Copy a param pytree to host (numpy) — a single best-val snapshot that
     holds no device buffer (so it survives a level-boundary ``clear_caches``).
     Float64 values are preserved exactly."""
-    return PDN2DParams(layers=[(np.asarray(W), np.asarray(b)) for (W, b) in params.layers])
+    return jax.tree_util.tree_map(np.asarray, params)
 
 
 def _params_from_host(host: PDN2DParams) -> PDN2DParams:
     """Rebuild a device param pytree from a host snapshot (exact float64)."""
-    return PDN2DParams(layers=[(jnp.asarray(W, dtype=DEFAULT_DTYPE), jnp.asarray(b, dtype=DEFAULT_DTYPE))
-                               for (W, b) in host.layers])
+    return jax.tree_util.tree_map(lambda x: jnp.asarray(x, dtype=DEFAULT_DTYPE), host)
 
 
 # --------------------------------------------------------------------------
@@ -594,7 +599,7 @@ def train_one_level(
         if have_val:
             if val_forward_fn is not None:
                 per_v, u_hs, kxs, kys = val_fwd(params, val_sigmas_j, val_denoms_j)
-                val_eta2 = 0.5 * float(jnp.mean(per_v))   # == batch_loss_fn (eq. 26)
+                val_eta2 = cfg.val_loss_scale * float(jnp.mean(per_v))
                 if h1_metric_fn is not None:
                     h1_arr = np.asarray(
                         h1_metric_fn(np.asarray(u_hs), np.asarray(kxs),
